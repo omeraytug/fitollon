@@ -1,7 +1,7 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,8 @@ from fitollon.db import DbSession
 from fitollon.derived import EARLIEST
 from fitollon.insights import KEY_METRICS, key_metric_series, last_training_session, today
 from fitollon.models import IngestEvent, Memory, Profile
+from fitollon.routes.media import hero_media
+from fitollon.targets import history, remove_targets, save_targets, targets_between, targets_for
 from fitollon.training import next_template
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
@@ -51,22 +53,78 @@ def home(session: Session = DbSession) -> dict:
         "metrics": metrics,
         "last_training": {"id": last.id, "day": last.day.isoformat(), "title": last.title} if last else None,
         "next_training": {"id": upcoming.id, "name": upcoming.name} if upcoming else None,
+        "targets": targets_for(session, end),
+        "hero": hero_media(session),
         "last_sync": last_sync.isoformat() if last_sync else None,
     }
 
 
+NUTRITION_KEYS = {"calories", "protein", "carbs", "fat"}
+
+
 @router.get("/series")
-def series(keys: str, days: int = Query(90, ge=0), session: Session = DbSession) -> dict:
-    """Daily values for the history pages; days=0 means everything."""
-    end = today()
-    start = end - timedelta(days=days - 1) if days else EARLIEST
+def series(
+    keys: str,
+    days: int = Query(90, ge=0),
+    start: date | None = None,
+    end: date | None = None,
+    session: Session = DbSession,
+) -> dict:
+    """Daily values for the history pages: the last `days` days (0 = everything), or start..end when given."""
+    current = today()
+    last = min(end or current, current)
+    first = start if start is not None else (last - timedelta(days=days - 1) if days else EARLIEST)
+    if first > last:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "start must be on or before end")
     result = {}
     for key in keys.split(","):
         if key not in KEY_METRICS:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown metric {key!r}")
-        values, unit = key_metric_series(session, key, start, end)
+        values, unit = key_metric_series(session, key, first, last)
         result[key] = {"unit": unit, "points": [{"day": d.isoformat(), "value": v} for d, v in values.items()]}
-    return {"today": end.isoformat(), "series": result}
+    if start is None and not days:
+        # "All" starts at the first day with data.
+        firsts = [s["points"][0]["day"] for s in result.values() if s["points"]]
+        first = date.fromisoformat(min(firsts)) if firsts else last
+    goals = targets_between(session, first, last) if NUTRITION_KEYS & set(result) else {}
+    return {
+        "today": current.isoformat(),
+        "start": first.isoformat(),
+        "end": last.isoformat(),
+        "series": result,
+        "targets": [{"day": d.isoformat(), **values} for d, values in goals.items()],
+    }
+
+
+class TargetsBody(BaseModel):
+    start_day: date | None = None  # defaults to today
+    calories: float | None = Field(default=None, ge=0, le=10000)
+    protein: float | None = Field(default=None, ge=0, le=1000)
+    carbs: float | None = Field(default=None, ge=0, le=2000)
+    fat: float | None = Field(default=None, ge=0, le=1000)
+
+
+def _targets_view(session: Session) -> dict:
+    current = today()
+    return {"today": current.isoformat(), "current": targets_for(session, current), "history": history(session)}
+
+
+@router.get("/targets")
+def get_targets(session: Session = DbSession) -> dict:
+    return _targets_view(session)
+
+
+@router.put("/targets")
+def put_targets(body: TargetsBody, session: Session = DbSession) -> dict:
+    values = body.model_dump(exclude={"start_day"})
+    save_targets(session, body.start_day or today(), values)
+    return _targets_view(session)
+
+
+@router.delete("/targets/{start_day}")
+def delete_targets(start_day: date, session: Session = DbSession) -> dict:
+    remove_targets(session, start_day)
+    return _targets_view(session)
 
 
 class ProfileBody(BaseModel):

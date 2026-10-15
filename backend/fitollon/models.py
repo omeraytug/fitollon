@@ -66,6 +66,28 @@ class Workout(Base):
     raw: Mapped[dict[str, Any] | None] = mapped_column(JsonType)
 
 
+class NutritionTarget(Base):
+    """Daily nutrition goals in effect from start_day on, per weekday (MacroFactor can differ by weekday).
+
+    The goals for a day are the rows with the latest start_day on or before it, for that day's weekday.
+    """
+
+    __tablename__ = "nutrition_targets"
+    __table_args__ = (UniqueConstraint("start_day", "weekday"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    start_day: Mapped[date] = mapped_column(Date, index=True)
+    weekday: Mapped[int] = mapped_column(Integer)  # 0 = Monday
+    calories: Mapped[float | None] = mapped_column(Float)
+    protein: Mapped[float | None] = mapped_column(Float)
+    carbs: Mapped[float | None] = mapped_column(Float)
+    fat: Mapped[float | None] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(40))  # macrofactor | manual
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Exercise(Base):
     __tablename__ = "exercises"
 
@@ -226,3 +248,23 @@ class IngestEvent(Base):
     summary: Mapped[dict[str, Any] | None] = mapped_column(JsonType)
     error: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict[str, Any] | None] = mapped_column(JsonType)
+
+
+class MediaItem(Base):
+    """A photo or video in the Photos page. The files live in Vercel Blob (private); this is the catalog."""
+
+    __tablename__ = "media_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10))  # photo | video
+    tag: Mapped[str] = mapped_column(String(20), index=True)  # meals | outdoors | progress | gym
+    caption: Mapped[str | None] = mapped_column(Text)
+    taken_on: Mapped[date] = mapped_column(Date, index=True)
+    pathname: Mapped[str] = mapped_column(String(500))  # the photo (resized) or video in Blob
+    thumb_pathname: Mapped[str] = mapped_column(String(500))  # small JPEG; a video's poster frame
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(Integer)  # file plus thumbnail, for the storage total
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    duration_s: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

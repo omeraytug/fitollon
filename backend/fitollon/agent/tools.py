@@ -9,7 +9,9 @@ from sqlalchemy import func, select, text
 from strands import tool
 
 from fitollon.db import get_engine, session_scope
+from fitollon.insights import today
 from fitollon.models import DailyMetric, Exercise, Memory, TrainingSession, TrainingSet, Workout
+from fitollon.targets import save_targets, targets_for
 from fitollon.training import active_program, format_set, get_or_create_exercise, next_template, rep_range
 
 MAX_RANGE_DAYS = 400
@@ -326,6 +328,30 @@ def get_training_program() -> dict[str, Any]:
 
 
 @tool
+def set_nutrition_goals(
+    calories: float | None = None,
+    protein_g: float | None = None,
+    carbs_g: float | None = None,
+    fat_g: float | None = None,
+    start_date: str | None = None,
+) -> dict[str, Any]:
+    """Save new daily nutrition goals, e.g. after MacroFactor's weekly check-in changed them. Only call this
+    when the user tells you their new goals. They apply to every day from start_date on.
+
+    Args:
+        calories: Daily calorie goal in kcal.
+        protein_g: Daily protein goal in grams.
+        carbs_g: Daily carbohydrate goal in grams.
+        fat_g: Daily fat goal in grams.
+        start_date: First day the goals apply, YYYY-MM-DD. Defaults to today.
+    """
+    with session_scope() as session:
+        day = date.fromisoformat(start_date) if start_date else today()
+        save_targets(session, day, {"calories": calories, "protein": protein_g, "carbs": carbs_g, "fat": fat_g})
+        return {"saved_from": day.isoformat(), "goals": targets_for(session, day)}
+
+
+@tool
 def remember(fact: str) -> str:
     """Save a lasting fact about the user (preference, injury, schedule, goal change) for future conversations.
 
@@ -363,7 +389,9 @@ def run_sql(query: str) -> dict[str, Any]:
     template_id), training_sets(session_id, exercise_id, planned_exercise_id, position, reps, weight_kg, rir, rpe,
     duration_s, distance_m, notes), exercises(id, name, load_type 'total'|'per_side', muscle_group),
     programs(id, name, is_active), workout_templates(id, program_id, name, position),
-    template_exercises(template_id, exercise_id, position, sets, rep_min, rep_max, rir_target, notes).
+    template_exercises(template_id, exercise_id, position, sets, rep_min, rep_max, rir_target, notes),
+    nutrition_targets(start_day, weekday 0=Monday, calories, protein, carbs, fat, source): the goals for a day are
+    the rows with the latest start_day on or before it, for its weekday.
 
     Args:
         query: A single SELECT (or WITH ... SELECT) statement.
@@ -400,6 +428,7 @@ ALL_TOOLS = [
     get_exercise_history,
     get_training_program,
     log_training_session,
+    set_nutrition_goals,
     remember,
     forget,
     run_sql,

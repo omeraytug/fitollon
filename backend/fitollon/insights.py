@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from fitollon.config import get_settings
 from fitollon.models import DailyMetric, TrainingSession
+from fitollon.targets import targets_for
 from fitollon.training import next_template
 
 # Friendly name -> metric names it may be stored under (earlier names win). Apple Health names come from
@@ -84,6 +85,11 @@ def recent_snapshot(session: Session, days: int = 7) -> str:
     upcoming = next_template(session)
     if upcoming:
         lines.append(f"Next session in the training cycle: {upcoming.name}")
+    goals = targets_for(session, end)
+    if goals:
+        parts = [f"{goals['calories']:.0f} kcal" if goals["calories"] is not None else None]
+        parts += [f"{name} {goals[name]:.0f} g" for name in ("protein", "carbs", "fat") if goals[name] is not None]
+        lines.append("Today's nutrition goals (MacroFactor's): " + ", ".join(p for p in parts if p))
     return "\n".join(lines)
 
 

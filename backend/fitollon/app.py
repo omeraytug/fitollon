@@ -2,7 +2,7 @@ import logging
 
 from fastapi import FastAPI
 
-from fitollon.routes import auth, chat, data, ingest, training
+from fitollon.routes import auth, chat, data, ingest, media, training
 
 logging.basicConfig(level=logging.INFO)
 
@@ -12,6 +12,7 @@ app.include_router(ingest.router)
 app.include_router(data.router)
 app.include_router(chat.router)
 app.include_router(training.router)
+app.include_router(media.router)
 
 
 @app.get("/api/health")

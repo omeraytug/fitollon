@@ -12,11 +12,17 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from fitollon.ingest.health_auto_export import MetricRow
+from fitollon.targets import TargetRow
 
 PROVIDER = "macrofactor"
 
 # Goal ranges (floor/target/ceiling per nutrient), not daily values.
 SKIP_SHEETS = {"Micronutrient Goals"}
+
+# The calorie and macro goals of each program update, one row per weekday.
+TARGETS_SHEET = "Nutrition Program Settings"
+WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+TARGET_COLUMNS = {"dietary_energy": "calories", "protein": "protein", "carbohydrates": "carbs", "total_fat": "fat"}
 
 # Column name -> metric name, for quantities Apple Health also has, plus MacroFactor's own calculations.
 METRIC_NAMES = {
@@ -53,7 +59,7 @@ def _day(value: object) -> date | None:
         return value
     if isinstance(value, str):
         try:
-            return date.fromisoformat(value[:10])
+            return date.fromisoformat(value[:10].replace("/", "-"))
         except ValueError:
             return None
     return None
@@ -80,6 +86,31 @@ def parse_workbook(path: Path) -> list[MetricRow]:
                         continue
                     metric, unit = column
                     rows[(day, metric)] = MetricRow(day=day, metric=metric, value=float(cell), unit=unit)
+    finally:
+        workbook.close()
+    return list(rows.values())
+
+
+def parse_targets(path: Path) -> list[TargetRow]:
+    """MacroFactor's goal history: the goals of each program update, per weekday."""
+    workbook = load_workbook(path, read_only=True, data_only=True)
+    try:
+        if TARGETS_SHEET not in workbook.sheetnames:
+            return []
+        values = workbook[TARGETS_SHEET].iter_rows(values_only=True)
+        header = [_metric(str(h))[0] if h else None for h in next(values, ())]
+        rows: dict[tuple[date, int], TargetRow] = {}
+        for row in values:
+            cells = dict(zip(header, row, strict=False))
+            day = _day(cells.get("program_update_date"))
+            weekday = str(cells.get("program_weekday") or "").strip().lower()
+            if day is None or weekday not in WEEKDAYS:
+                continue
+            goals = {
+                field: float(cells[column]) if isinstance(cells.get(column), int | float) else None
+                for column, field in TARGET_COLUMNS.items()
+            }
+            rows[(day, WEEKDAYS.index(weekday))] = TargetRow(day, WEEKDAYS.index(weekday), **goals)
     finally:
         workbook.close()
     return list(rows.values())

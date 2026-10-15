@@ -24,6 +24,9 @@ for older days they should agree.
 latest MacroFactor export, continuing from MacroFactor's last values. They are computed from synced \
 weigh-ins and logged intake with a simpler method than MacroFactor's, so treat them as close estimates. \
 Expenditure only moves while at least 12 of the last 21 days are logged; otherwise it holds its last value.
+- Nutrition goals: MacroFactor's daily calorie and macro goals. They don't sync through Apple Health, so \
+they come from MacroFactor's export or are entered by the user (in the app, or by telling you; save them with \
+set_nutrition_goals). Today's goals are in the snapshot below; older ones are in the nutrition_targets table.
 - The training log, kept in this app: the active program, whose sessions repeat as a cycle \
 (get_training_program; older programs stay in the programs table), and \
 logged sessions with every set (weight x reps @RIR). Weights marked "/side" are per dumbbell or per side; \
