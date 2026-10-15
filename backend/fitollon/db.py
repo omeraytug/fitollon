@@ -12,7 +12,8 @@ from fitollon.config import get_settings
 @lru_cache
 def get_engine() -> Engine:
     # Serverless functions are short-lived, so don't hold a pool open; Neon's pooler does the pooling.
-    return create_engine(get_settings().sqlalchemy_url, poolclass=NullPool)
+    # prepare_threshold=None: no server-side prepared statements, which a transaction-mode pooler can't track.
+    return create_engine(get_settings().sqlalchemy_url, poolclass=NullPool, connect_args={"prepare_threshold": None})
 
 
 @contextmanager

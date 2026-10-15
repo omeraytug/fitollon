@@ -53,16 +53,19 @@ curl -X POST localhost:8000/api/ingest/health-auto-export \
 
 ## Deploying to Vercel
 
-1. Push the repo to GitHub and import it in Vercel. Vercel builds it from `vercel.json`; nothing runs on
-   GitHub Actions.
-2. In the Vercel project, add a **Neon Postgres** database (Storage → Marketplace). It sets `DATABASE_URL`.
-3. Add the other environment variables from `.env.example`: `APP_PASSWORD`, `SESSION_SECRET`,
-   `INGEST_TOKEN`, `TIMEZONE`, `MODEL_PROVIDER`, `MODEL_ID`, `OPENAI_API_KEY`. Leave `COOKIE_SECURE` unset
-   (it defaults to true).
-4. Create the tables once, and again after any schema change, from your machine:
-   `cd backend && DATABASE_URL='<neon connection string>' uv run alembic upgrade head`
-5. Open the deployment, log in, and follow **Settings → Apple Health sync** to set up Health Auto Export with
-   your deployment URL.
+1. Import the GitHub repo in Vercel and keep the root directory as `./`; Vercel builds it from `vercel.json`,
+   and nothing runs on GitHub Actions. Before the first deploy, add the environment variables from
+   `.env.example`: `APP_PASSWORD`, `SESSION_SECRET`, `INGEST_TOKEN`, `TIMEZONE`, `MODEL_PROVIDER`, `MODEL_ID`,
+   `OPENAI_API_KEY`. Vercel accepts a whole `.env` file pasted into the first key field. Leave `COOKIE_SECURE`
+   unset; it defaults to true.
+2. Add a **Neon** database (project → Storage → Create Database) in the region closest to you, and connect it to
+   all environments. It sets `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`.
+3. Run the functions in the same region as the database (Settings → Functions → Function Region, e.g. Frankfurt
+   `fra1` for Neon's `aws-eu-central-1`). Each request makes several queries, so a cross-region hop adds up.
+4. Create the tables from your machine, and again after any schema change, using the unpooled URL:
+   `cd backend && DATABASE_URL='<DATABASE_URL_UNPOOLED>' uv run alembic upgrade head`
+5. Redeploy so the new variables and region apply, log in, and follow **Settings → Apple Health sync** to set up
+   Health Auto Export with your deployment URL.
 
 Vercel limits request bodies to 4.5 MB. Daily syncs are far below that. Large history imports will run as a
 local script that writes straight to the database.
