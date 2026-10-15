@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --hairline: rgba(11, 11, 11, 0.1);
+  --accent: #2a78d6;
+  --accent-wash: rgba(42, 120, 214, 0.1);
+  --accent-ink: #ffffff;
+  --bubble: #eef4fc;
+  --critical: #d03b3b;
+  --good: #006300;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --hairline: rgba(255, 255, 255, 0.1);
+    --accent: #3987e5;
+    --accent-wash: rgba(57, 135, 229, 0.12);
+    --accent-ink: #ffffff;
+    --bubble: #1c2a3b;
+    --critical: #e66767;
+    --good: #0ca30c;
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-hairline: var(--hairline);
+  --color-accent: var(--accent);
+  --color-accent-wash: var(--accent-wash);
+  --color-accent-ink: var(--accent-ink);
+  --color-bubble: var(--bubble);
+  --color-critical: var(--critical);
+  --color-good: var(--good);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+}
+
+/* Chat replies are Markdown. */
+.prose-chat > * + * {
+  margin-top: 0.6em;
+}
+.prose-chat ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+.prose-chat ol {
+  list-style: decimal;
+  padding-left: 1.25em;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  font-weight: 600;
+}
+.prose-chat strong {
+  font-weight: 600;
+}
+.prose-chat code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.prose-chat table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  display: block;
+  overflow-x: auto;
+}
+.prose-chat th,
+.prose-chat td {
+  border-bottom: 1px solid var(--grid);
+  padding: 0.25em 0.75em 0.25em 0;
+  text-align: left;
+}
