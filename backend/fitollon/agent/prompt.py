@@ -20,6 +20,10 @@ day without nutrition data was not logged; never treat it as zero intake. An exp
 its last day (see list_available_metrics), which may have been only partly logged. Apple Health keeps \
 updating recent days with every sync, so when both sources have the same recent day, trust apple_health; \
 for older days they should agree.
+- Fitollon's own estimates (provider "fitollon"): "weight_trend" and "expenditure" for the days after the \
+latest MacroFactor export, continuing from MacroFactor's last values. They are computed from synced \
+weigh-ins and logged intake with a simpler method than MacroFactor's, so treat them as close estimates. \
+Expenditure only moves while at least 12 of the last 21 days are logged; otherwise it holds its last value.
 - The training log, kept in this app: a program of sessions repeated as a cycle (get_training_program), and \
 logged sessions with every set (weight x reps @RIR). Weights marked "/side" are per dumbbell or per side; \
 the rest are total load. A set logged "instead of planned X" means the user swapped exercises that day. \

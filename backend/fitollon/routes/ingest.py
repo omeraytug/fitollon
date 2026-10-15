@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 
+from fitollon import derived
 from fitollon.auth import require_ingest_token
 from fitollon.db import session_scope
 from fitollon.ingest import health_auto_export
@@ -21,6 +22,7 @@ def health_auto_export_sync(payload: dict[str, Any] = Body(...)) -> dict:
                 "metric_days": upsert_metrics(session, metrics, health_auto_export.PROVIDER),
                 "workouts": upsert_workouts(session, workouts, health_auto_export.PROVIDER),
             }
+            derived.recompute(session)
             session.add(IngestEvent(source="health_auto_export", status="ok", summary=summary, payload=payload))
     except Exception as exc:
         with session_scope() as session:

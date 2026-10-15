@@ -33,6 +33,7 @@ def list_models() -> None:
 
 
 def import_macrofactor(path: Path) -> None:
+    from fitollon import derived
     from fitollon.db import session_scope
     from fitollon.ingest import macrofactor
     from fitollon.ingest.store import upsert_metrics
@@ -50,6 +51,7 @@ def import_macrofactor(path: Path) -> None:
 
     with session_scope() as session:
         count = upsert_metrics(session, rows, macrofactor.PROVIDER)
+        derived.recompute(session)
         summary = {"metric_days": count, "file": path.name}
         session.add(IngestEvent(source="macrofactor_export", status="ok", summary=summary))
     print(f"Imported {count} metric-days from {len(by_metric)} metrics.")
