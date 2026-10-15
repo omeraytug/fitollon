@@ -1,0 +1,19 @@
+# Local development database. Production uses Neon Postgres (via Vercel).
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: fitollon
+      POSTGRES_PASSWORD: fitollon
+      POSTGRES_DB: fitollon
+    ports:
+      - "5433:5432"
+    volumes:
+      - fitollon-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fitollon"]
+      interval: 2s
+      retries: 15
+
+volumes:
+  fitollon-db:
