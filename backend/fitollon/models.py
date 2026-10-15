@@ -70,10 +70,46 @@ class Exercise(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True)
     muscle_group: Mapped[str | None] = mapped_column(String(80))
     notes: Mapped[str | None] = mapped_column(Text)
+    # How weight_kg is meant for this exercise: "total" (whole bar/stack) or "per_side" (per dumbbell/side).
+    load_type: Mapped[str] = mapped_column(String(20), default="total", server_default="total")
+
+
+class WorkoutTemplate(Base):
+    """One session of the training cycle (e.g. "Upper A"); position gives the order within the cycle."""
+
+    __tablename__ = "workout_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    position: Mapped[int] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    exercises: Mapped[list["TemplateExercise"]] = relationship(
+        back_populates="template", cascade="all, delete-orphan", order_by="TemplateExercise.position"
+    )
+
+
+class TemplateExercise(Base):
+    """A planned exercise in a template: how many sets, which rep range, how close to failure."""
+
+    __tablename__ = "template_exercises"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("workout_templates.id", ondelete="CASCADE"), index=True)
+    exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"))
+    position: Mapped[int] = mapped_column(Integer)
+    sets: Mapped[int | None] = mapped_column(Integer)
+    rep_min: Mapped[int | None] = mapped_column(Integer)
+    rep_max: Mapped[int | None] = mapped_column(Integer)
+    rir_target: Mapped[str | None] = mapped_column(String(20))  # e.g. "1" or "0-1"
+    notes: Mapped[str | None] = mapped_column(Text)  # setup cues, e.g. "seat 7"
+
+    template: Mapped[WorkoutTemplate] = relationship(back_populates="exercises")
+    exercise: Mapped[Exercise] = relationship()
 
 
 class TrainingSession(Base):
-    """A strength/gym session (from the Excel import, the app, or the AI chat)."""
+    """A strength/gym session (from the app or the AI chat)."""
 
     __tablename__ = "training_sessions"
 
@@ -81,12 +117,14 @@ class TrainingSession(Base):
     day: Mapped[date] = mapped_column(Date, index=True)
     title: Mapped[str | None] = mapped_column(String(200))
     notes: Mapped[str | None] = mapped_column(Text)
-    source: Mapped[str] = mapped_column(String(40), default="app")  # excel | app | chat
+    source: Mapped[str] = mapped_column(String(40), default="app")  # app | chat
+    template_id: Mapped[int | None] = mapped_column(ForeignKey("workout_templates.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     sets: Mapped[list["TrainingSet"]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="TrainingSet.position"
     )
+    template: Mapped[WorkoutTemplate | None] = relationship()
 
 
 class TrainingSet(Base):
@@ -95,16 +133,20 @@ class TrainingSet(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True)
     exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"), index=True)
+    # Set when this exercise replaced a different one from the plan ("did X instead of Y").
+    planned_exercise_id: Mapped[int | None] = mapped_column(ForeignKey("exercises.id"))
     position: Mapped[int] = mapped_column(Integer)  # order within the session
     reps: Mapped[int | None] = mapped_column(Integer)
-    weight_kg: Mapped[float | None] = mapped_column(Float)
+    weight_kg: Mapped[float | None] = mapped_column(Float)  # per the exercise's load_type
+    rir: Mapped[float | None] = mapped_column(Float)
     rpe: Mapped[float | None] = mapped_column(Float)
     duration_s: Mapped[float | None] = mapped_column(Float)
     distance_m: Mapped[float | None] = mapped_column(Float)
     notes: Mapped[str | None] = mapped_column(Text)
 
     session: Mapped[TrainingSession] = relationship(back_populates="sets")
-    exercise: Mapped[Exercise] = relationship()
+    exercise: Mapped[Exercise] = relationship(foreign_keys=[exercise_id])
+    planned_exercise: Mapped[Exercise | None] = relationship(foreign_keys=[planned_exercise_id])
 
 
 class Profile(Base):
