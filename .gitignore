@@ -224,3 +224,6 @@ __marimo__/
 # Local secrets: every .env variant except the documented example
 .env.*
 !.env.example
+
+# Personal data exports (MacroFactor, Excel training logs, Apple Health) dropped in for importing
+/imports/
