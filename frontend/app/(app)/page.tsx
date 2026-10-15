@@ -97,9 +97,14 @@ export default function DashboardPage() {
               : "None logged yet"}
           </p>
         </div>
-        <Link href="/chat" className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-ink">
-          Ask your coach
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/training" className="rounded-md border border-hairline px-3 py-2 text-sm font-medium hover:border-accent">
+            Training
+          </Link>
+          <Link href="/chat" className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-ink">
+            Ask your coach
+          </Link>
+        </div>
       </section>
     </div>
   );
