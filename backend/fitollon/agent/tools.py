@@ -10,6 +10,7 @@ from strands import tool
 
 from fitollon.db import get_engine, session_scope
 from fitollon.models import DailyMetric, Exercise, Memory, TrainingSession, TrainingSet, Workout
+from fitollon.training import format_set, get_or_create_exercise, next_template, program, rep_range
 
 MAX_RANGE_DAYS = 400
 MAX_SQL_ROWS = 200
@@ -168,34 +169,20 @@ def get_workouts(start_date: str, end_date: str) -> list[dict[str, Any]]:
     ]
 
 
-def _format_set(s: TrainingSet) -> str:
-    parts = []
-    if s.weight_kg is not None:
-        parts.append(f"{s.weight_kg:g}kg")
-    if s.reps is not None:
-        parts.append(f"x{s.reps}")
-    if s.duration_s is not None:
-        parts.append(f"{s.duration_s:g}s")
-    if s.distance_m is not None:
-        parts.append(f"{s.distance_m:g}m")
-    out = " ".join(parts) or "set"
-    if s.rpe is not None:
-        out += f" @RPE{s.rpe:g}"
-    if s.notes:
-        out += f" ({s.notes})"
-    return out
-
-
 def _session_dict(ts: TrainingSession, exercise_filter: str | None = None) -> dict[str, Any]:
     exercises: dict[str, list[str]] = {}
     for s in ts.sets:
         if exercise_filter and exercise_filter.lower() not in s.exercise.name.lower():
             continue
-        exercises.setdefault(s.exercise.name, []).append(_format_set(s))
+        name = s.exercise.name
+        if s.planned_exercise is not None:
+            name += f" (instead of planned {s.planned_exercise.name})"
+        exercises.setdefault(name, []).append(format_set(s))
     return {
         "id": ts.id,
         "day": ts.day.isoformat(),
         "title": ts.title,
+        "program_day": ts.template.name if ts.template else None,
         "notes": ts.notes,
         "exercises": [{"name": name, "sets": sets} for name, sets in exercises.items()],
     }
@@ -203,7 +190,9 @@ def _session_dict(ts: TrainingSession, exercise_filter: str | None = None) -> di
 
 @tool
 def get_training_sessions(start_date: str, end_date: str, exercise: str | None = None) -> list[dict[str, Any]]:
-    """Strength training sessions in a date range, with every set (weight x reps @RPE).
+    """Strength training sessions in a date range, with every set (weight x reps @RIR).
+
+    "kg/side" means per dumbbell or per side of the machine; plain "kg" is the total load.
 
     Args:
         start_date: First day, YYYY-MM-DD.
@@ -255,8 +244,9 @@ def get_exercise_history(exercise: str, limit_sessions: int = 20) -> dict[str, A
                 {
                     "day": ts.day.isoformat(),
                     "exercise": sets[0].exercise.name,
-                    "sets": [_format_set(s) for s in sets],
-                    "best_set": _format_set(best) if best else None,
+                    "load": "per side" if sets[0].exercise.load_type == "per_side" else "total",
+                    "sets": [format_set(s) for s in sets],
+                    "best_set": format_set(best) if best else None,
                     "est_1rm_kg": round(best.weight_kg * (1 + best.reps / 30), 1) if best else None,
                 }
             )
@@ -265,7 +255,8 @@ def get_exercise_history(exercise: str, limit_sessions: int = 20) -> dict[str, A
 
 class SetInput(BaseModel):
     reps: int | None = None
-    weight_kg: float | None = None
+    weight_kg: float | None = Field(default=None, description="Per side for per-side exercises, else total.")
+    rir: float | None = Field(default=None, description="Reps in reserve.")
     rpe: float | None = None
     duration_s: float | None = None
     notes: str | None = None
@@ -293,16 +284,43 @@ def log_training_session(
         position = 0
         for item in exercises:
             item = ExerciseInput.model_validate(item)
-            exercise = session.scalars(select(Exercise).where(func.lower(Exercise.name) == item.name.lower())).first()
-            if exercise is None:
-                exercise = Exercise(name=item.name)
-                session.add(exercise)
+            exercise = get_or_create_exercise(session, item.name)
             for s in item.sets:
                 position += 1
                 ts.sets.append(TrainingSet(exercise=exercise, position=position, **s.model_dump()))
         session.add(ts)
         session.flush()
         return {"saved_session_id": ts.id, **_session_dict(ts)}
+
+
+@tool
+def get_training_program() -> dict[str, Any]:
+    """The user's training program: the cycle of sessions in order, each with its planned exercises
+    (sets, rep range, RIR target, setup notes), plus which session is next in the cycle.
+    """
+    with session_scope() as session:
+        upcoming = next_template(session)
+        return {
+            "next_session": upcoming.name if upcoming else None,
+            "cycle": [
+                {
+                    "name": t.name,
+                    "notes": t.notes,
+                    "exercises": [
+                        {
+                            "name": te.exercise.name,
+                            "load": "per side" if te.exercise.load_type == "per_side" else "total",
+                            "sets": te.sets,
+                            "reps": rep_range(te.rep_min, te.rep_max),
+                            "rir_target": te.rir_target,
+                            "notes": te.notes,
+                        }
+                        for te in t.exercises
+                    ],
+                }
+                for t in program(session)
+            ],
+        }
 
 
 @tool
@@ -339,9 +357,11 @@ def run_sql(query: str) -> dict[str, Any]:
     """Run one read-only PostgreSQL SELECT for analysis the other tools don't cover. Returns at most 200 rows.
 
     Tables: daily_metrics(day, metric, value, unit, provider), workouts(name, start, "end", duration_s,
-    active_energy_kcal, avg_heart_rate, max_heart_rate, distance_km), training_sessions(id, day, title, notes),
-    training_sets(session_id, exercise_id, position, reps, weight_kg, rpe, duration_s, distance_m, notes),
-    exercises(id, name, muscle_group).
+    active_energy_kcal, avg_heart_rate, max_heart_rate, distance_km), training_sessions(id, day, title, notes,
+    template_id), training_sets(session_id, exercise_id, planned_exercise_id, position, reps, weight_kg, rir, rpe,
+    duration_s, distance_m, notes), exercises(id, name, load_type 'total'|'per_side', muscle_group),
+    workout_templates(id, name, position), template_exercises(template_id, exercise_id, position, sets, rep_min,
+    rep_max, rir_target, notes).
 
     Args:
         query: A single SELECT (or WITH ... SELECT) statement.
@@ -376,6 +396,7 @@ ALL_TOOLS = [
     get_workouts,
     get_training_sessions,
     get_exercise_history,
+    get_training_program,
     log_training_session,
     remember,
     forget,

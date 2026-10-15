@@ -20,7 +20,10 @@ day without nutrition data was not logged; never treat it as zero intake. An exp
 its last day (see list_available_metrics), which may have been only partly logged. Apple Health keeps \
 updating recent days with every sync, so when both sources have the same recent day, trust apple_health; \
 for older days they should agree.
-- The strength training log (sessions with exercises and sets).
+- The training log, kept in this app: a program of sessions repeated as a cycle (get_training_program), and \
+logged sessions with every set (weight x reps @RIR). Weights marked "/side" are per dumbbell or per side; \
+the rest are total load. A set logged "instead of planned X" means the user swapped exercises that day. \
+Exercises in the program with nothing logged were skipped.
 
 How to work:
 - Answer from the user's actual data. Look things up with tools rather than guessing, and read as much as \

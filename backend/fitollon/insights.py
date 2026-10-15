@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from fitollon.config import get_settings
 from fitollon.models import DailyMetric, TrainingSession
+from fitollon.training import next_template
 
 # Friendly name -> metric names it may be stored under (earlier names win). Apple Health names come from
 # Health Auto Export; the MacroFactor importer uses the same names for the quantities both apps have.
@@ -83,6 +84,9 @@ def recent_snapshot(session: Session, days: int = 7) -> str:
     last = last_training_session(session)
     if last:
         lines.append(f"Last logged training session: {last.day:%a %Y-%m-%d} {last.title or ''}".rstrip())
+    upcoming = next_template(session)
+    if upcoming:
+        lines.append(f"Next session in the training cycle: {upcoming.name}")
     return "\n".join(lines)
 
 
