@@ -45,6 +45,12 @@ CUMULATIVE_METRICS = {
     "caffeine",
 }
 
+# Units depend on the phone's settings; store one unit per quantity so sources can be compared and averaged.
+UNIT_CONVERSIONS: dict[str, tuple[float, str]] = {
+    "kj": (1 / 4.184, "kcal"),
+    "count/min": (1.0, "bpm"),
+}
+
 # Large time-series arrays we don't keep in the stored workout summary.
 WORKOUT_ARRAY_KEYS = {"heartRateData", "heartRateRecovery", "route", "stepCount", "walkingAndRunningDistance"}
 
@@ -101,14 +107,14 @@ def parse_metrics(metrics: list[dict[str, Any]]) -> list[MetricRow]:
         name = metric.get("name")
         if not name:
             continue
-        unit = metric.get("units")
+        factor, unit = UNIT_CONVERSIONS.get((metric.get("units") or "").lower(), (1.0, metric.get("units")))
         for point in metric.get("data") or []:
             raw_date = point.get("date") or point.get("startDate")
             if not raw_date:
                 continue
             day = parse_day(raw_date)
             if isinstance(point.get("qty"), int | float):
-                values[(day, name)].append(float(point["qty"]))
+                values[(day, name)].append(float(point["qty"]) * factor)
                 units[name] = unit
                 continue
             # Multi-value points: heart_rate {Min, Avg, Max}, sleep_analysis {totalSleep, deep, ...},
@@ -117,7 +123,7 @@ def parse_metrics(metrics: list[dict[str, Any]]) -> list[MetricRow]:
                 if isinstance(field_value, bool) or not isinstance(field_value, int | float):
                     continue
                 sub_metric = f"{name}.{_snake(field)}"
-                values[(day, sub_metric)].append(float(field_value))
+                values[(day, sub_metric)].append(float(field_value) * factor)
                 units[sub_metric] = unit
 
     rows = []
