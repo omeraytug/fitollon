@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, LogOut, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -25,10 +26,10 @@ function describe(summary: NonNullable<SyncEvent["summary"]>): string {
   return parts.join(", ");
 }
 
-const card = "rounded-xl border border-hairline bg-surface p-5";
+const card = "rise rounded-2xl border border-hairline bg-surface p-5";
 const field = "mt-1 w-full rounded-md border border-hairline bg-page px-3 py-2 outline-none focus:border-accent";
 
-export default function SettingsPage() {
+export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [events, setEvents] = useState<SyncEvent[]>([]);
@@ -57,14 +58,20 @@ export default function SettingsPage() {
     setProfile((p) => (p ? { ...p, memories: p.memories.filter((m) => m.id !== id) } : p));
   }
 
-  if (!profile) return <p className="text-muted">Loading…</p>;
-  const origin = window.location.origin; // only rendered client-side, after the profile has loaded
+  if (!profile) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="skeleton h-9 w-40 rounded-lg" />
+        <div className="skeleton h-80 rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+    <div className="flex flex-col gap-4">
+      <h1 className="rise text-3xl font-semibold tracking-tight">Profile</h1>
 
-      <form onSubmit={save} className={card}>
+      <form onSubmit={save} className={card} style={{ "--i": 1 } as React.CSSProperties}>
         <h2 className="font-medium">What your coach should know</h2>
         <p className="mt-1 text-sm text-ink-2">Included in every conversation.</p>
         <label className="mt-4 block text-sm font-medium" htmlFor="about">
@@ -90,14 +97,14 @@ export default function SettingsPage() {
           className={field}
         />
         <div className="mt-4 flex items-center gap-3">
-          <button type="submit" className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-ink">
+          <button type="submit" className="press rounded-full bg-accent px-5 py-2 text-sm font-medium text-accent-ink">
             Save
           </button>
           {saved && <span className="text-sm text-good">{saved}</span>}
         </div>
       </form>
 
-      <section className={card}>
+      <section className={card} style={{ "--i": 2 } as React.CSSProperties}>
         <h2 className="font-medium">Coach memories</h2>
         <p className="mt-1 text-sm text-ink-2">Facts the coach saved from your conversations.</p>
         {profile.memories.length === 0 ? (
@@ -116,43 +123,32 @@ export default function SettingsPage() {
         )}
       </section>
 
-      <section className={card}>
-        <h2 className="font-medium">Apple Health sync (Health Auto Export)</h2>
-        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-ink-2">
-          <li>In Health Auto Export, open Automations and add a new <b>REST API</b> automation.</li>
-          <li>
-            URL: <code className="break-all text-ink">{origin}/api/ingest/health-auto-export</code>
-          </li>
-          <li>
-            Add header <code className="text-ink">Authorization</code> with value{" "}
-            <code className="text-ink">Bearer &lt;your INGEST_TOKEN&gt;</code>.
-          </li>
-          <li>Data: Health Metrics and Workouts. Format: JSON, Export Version 2.</li>
-          <li>Turn on Summarize Data and aggregate by day. Date range: Previous 7 Days.</li>
-          <li>Run it a few times a day; re-sent days are overwritten, never duplicated.</li>
-        </ol>
-        <h3 className="mt-5 text-sm font-medium">Recent syncs</h3>
+      <section className={card} style={{ "--i": 3 } as React.CSSProperties}>
+        <h2 className="font-medium">Recent syncs</h2>
         {events.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No syncs received yet.</p>
         ) : (
-          <table className="mt-2 w-full text-sm tabular-nums">
-            <tbody>
-              {events.map((e, i) => (
-                <tr key={i} className="border-t border-grid">
-                  <td className="py-1.5 pr-3">{new Date(e.received_at).toLocaleString()}</td>
-                  <td className={`py-1.5 pr-3 whitespace-nowrap ${e.status === "ok" ? "text-good" : "text-critical"}`}>
-                    {e.status === "ok" ? "✓ OK" : "✕ Error"}
-                  </td>
-                  <td className="py-1.5 text-ink-2">{SOURCES[e.source] ?? e.source}</td>
-                  <td className="py-1.5 pl-3 text-ink-2">{e.summary ? describe(e.summary) : e.error}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="mt-2 divide-y divide-grid text-sm">
+            {events.map((e, i) => (
+              <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-2 tabular-nums">
+                {e.status === "ok" ? (
+                  <Check size={15} className="text-good" aria-label="OK" />
+                ) : (
+                  <X size={15} className="text-critical" aria-label="Error" />
+                )}
+                <span className="font-medium">{SOURCES[e.source] ?? e.source}</span>
+                <span className="text-ink-2">{e.summary ? describe(e.summary) : e.error}</span>
+                <span className="ml-auto text-muted">
+                  {new Date(e.received_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
-      <button onClick={logout} className="self-start pb-6 text-sm text-muted hover:text-ink">
+      <button onClick={logout} className="press flex items-center gap-2 self-start text-sm text-muted hover:text-ink">
+        <LogOut size={15} />
         Log out
       </button>
     </div>

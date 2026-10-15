@@ -10,7 +10,7 @@ iPhone ── Health Auto Export ──POST /api/ingest/health-auto-export──
  (Apple Health: steps, Watch metrics, and MacroFactor's              │
   nutrition + weight, which MacroFactor writes into Apple Health)    ▼
                                                      backend/  FastAPI + Strands agent ──► Postgres
-browser ── frontend/  Next.js (dashboard, coach chat, settings) ──/api/*──┘                (Neon on Vercel)
+browser ── frontend/  Next.js (home, training, coach, profile) ───/api/*──┘                (Neon on Vercel)
 ```
 
 - **backend/**: Python 3.12, FastAPI, SQLAlchemy and Alembic, plus the [Strands Agents](https://strandsagents.com) coach.
@@ -64,11 +64,29 @@ curl -X POST localhost:8000/api/ingest/health-auto-export \
    `fra1` for Neon's `aws-eu-central-1`). Each request makes several queries, so a cross-region hop adds up.
 4. Create the tables from your machine, and again after any schema change, using the unpooled URL:
    `cd backend && DATABASE_URL='<DATABASE_URL_UNPOOLED>' uv run alembic upgrade head`
-5. Redeploy so the new variables and region apply, log in, and follow **Settings → Apple Health sync** to set up
-   Health Auto Export with your deployment URL.
+5. Redeploy so the new variables and region apply, log in, and set up the Apple Health sync below with your
+   deployment URL.
 
 Vercel limits request bodies to 4.5 MB. Daily syncs are far below that. Large history imports will run as a
 local script that writes straight to the database.
+
+## Apple Health sync (Health Auto Export)
+
+MacroFactor writes food and weigh-ins to Apple Health, and the iPhone and Watch write steps and the rest. The
+[Health Auto Export](https://apps.apple.com/app/id1115567069) app (Premium) sends it all to Fitollon:
+
+1. In the Health app, give Health Auto Export read access (profile picture → Apps → Health Auto Export → Turn On All).
+2. In Health Auto Export, open Automations and add a **REST API** automation:
+   - URL: `https://<your deployment>/api/ingest/health-auto-export`
+   - Header `Authorization` with value `Bearer <INGEST_TOKEN>`
+   - Data: Health Metrics and Workouts. Format: JSON, Export Version 2.
+   - Summarize Data on, aggregated by day. Date range: Previous 7 Days. Batch requests on.
+   - Sync cadence: every hour. More often keeps the Neon database awake around the clock and uses up the free
+     plan's compute hours.
+3. iOS only lets apps read Health data while the phone is unlocked, so syncs happen when you use your phone.
+   Re-sent days overwrite the stored values, never duplicate them. **Profile → Recent syncs** shows what arrived.
+
+After each sync Fitollon recalculates trend weight and expenditure, continuing from the last MacroFactor export.
 
 ## Switching the AI model
 
