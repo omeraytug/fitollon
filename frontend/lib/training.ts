@@ -27,6 +27,7 @@ export type LoggedSet = {
   id: number;
   exercise_id: number;
   planned_exercise_id: number | null;
+  plan_occurrence: number | null;
   position: number;
   weight_kg: number | null;
   reps: number | null;
@@ -37,7 +38,9 @@ export type LoggedSet = {
 export type LastTime = {
   session_id: number;
   day: string;
-  substituted_by: string | null;
+  template_name: string | null;
+  exercise_id: number;
+  exercise_name: string;
   sets: { weight_kg: number | null; reps: number | null; rir: number | null; notes: string | null }[];
   summary: string;
 };
@@ -50,7 +53,8 @@ export type SessionDetail = {
   template: Template | null;
   sets: LoggedSet[];
   exercises: Record<string, Exercise>;
-  last_time: Record<string, LastTime>;
+  slot_last_time: (LastTime | null)[];
+  last_time: Record<string, LastTime | null>;
 };
 
 export type SessionSummary = { id: number; day: string; title: string; set_count: number; exercises: string[] };
@@ -88,3 +92,38 @@ export function shortDate(day: string): string {
     timeZone: "UTC",
   });
 }
+
+export type Slot = {
+  key: string;
+  planned: PlannedExercise | null;
+  occurrence: number | null; // which "Biceps of choice" this is, when the template lists one twice
+  exerciseId: number; // what is being done in the slot (differs from the plan after a swap)
+  sets: LoggedSet[];
+  slotLast: LastTime | null; // what was done in this slot the last time this session came around
+};
+/** Group logged sets under the plan's slots (including swaps), then any extra exercises. */
+export function buildSlots(data: SessionDetail, swaps: Record<string, number>, extras: number[]): Slot[] {
+  const claimed = new Set<number>();
+  const seen: Record<number, number> = {};
+  const slots: Slot[] = (data.template?.exercises ?? []).map((planned, i) => {
+    const key = `plan-${i}`;
+    const occurrence = seen[planned.exercise_id] ?? 0;
+    seen[planned.exercise_id] = occurrence + 1;
+    const sets = data.sets.filter(
+      (s) =>
+        !claimed.has(s.id) &&
+        ((s.planned_exercise_id === planned.exercise_id && (s.plan_occurrence ?? 0) === occurrence) ||
+          (s.planned_exercise_id === null && occurrence === 0 && s.exercise_id === planned.exercise_id)),
+    );
+    sets.forEach((s) => claimed.add(s.id));
+    const exerciseId = swaps[key] ?? sets.at(-1)?.exercise_id ?? planned.exercise_id;
+    return { key, planned, occurrence, exerciseId, sets, slotLast: data.slot_last_time[i] ?? null };
+  });
+  const extraIds = [...new Set([...data.sets.filter((s) => !claimed.has(s.id)).map((s) => s.exercise_id), ...extras])];
+  for (const exerciseId of extraIds) {
+    const sets = data.sets.filter((s) => !claimed.has(s.id) && s.exercise_id === exerciseId);
+    slots.push({ key: `extra-${exerciseId}`, planned: null, occurrence: null, exerciseId, sets, slotLast: null });
+  }
+  return slots;
+}
+

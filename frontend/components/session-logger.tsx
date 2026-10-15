@@ -7,41 +7,18 @@ import { useEffect, useState } from "react";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { api } from "@/lib/api";
 import {
+  buildSlots,
   formatSet,
   shortDate,
   target,
   type Exercise,
   type LastTime,
   type LoggedSet,
-  type PlannedExercise,
   type SessionDetail,
+  type Slot,
 } from "@/lib/training";
 
-type Slot = { key: string; planned: PlannedExercise | null; exerciseId: number; sets: LoggedSet[] };
 type Picking = { mode: "swap"; slotKey: string } | { mode: "add" } | null;
-
-/** Group logged sets under the plan's exercises (including swaps), then any extra exercises. */
-function buildSlots(data: SessionDetail, swaps: Record<string, number>, extras: number[]): Slot[] {
-  const claimed = new Set<number>();
-  const slots: Slot[] = (data.template?.exercises ?? []).map((planned, i) => {
-    const key = `plan-${i}`;
-    const sets = data.sets.filter(
-      (s) =>
-        !claimed.has(s.id) &&
-        (s.planned_exercise_id === planned.exercise_id ||
-          (s.planned_exercise_id === null && s.exercise_id === planned.exercise_id)),
-    );
-    sets.forEach((s) => claimed.add(s.id));
-    const exerciseId = swaps[key] ?? sets.at(-1)?.exercise_id ?? planned.exercise_id;
-    return { key, planned, exerciseId, sets };
-  });
-  const extraIds = [...new Set([...data.sets.filter((s) => !claimed.has(s.id)).map((s) => s.exercise_id), ...extras])];
-  for (const exerciseId of extraIds) {
-    const sets = data.sets.filter((s) => !claimed.has(s.id) && s.exercise_id === exerciseId);
-    slots.push({ key: `extra-${exerciseId}`, planned: null, exerciseId, sets });
-  }
-  return slots;
-}
 
 export function SessionLogger() {
   const { id } = useParams<{ id: string }>();
@@ -112,7 +89,13 @@ export function SessionLogger() {
           slot={slot}
           exercise={exercises[slot.exerciseId]}
           plannedName={slot.planned && slot.planned.exercise_id !== slot.exerciseId ? slot.planned.name : null}
-          last={lastTime[slot.exerciseId] ?? null}
+          // This slot's history when it matches what's being done now, else this exercise's own history.
+          last={
+            slot.slotLast && slot.slotLast.exercise_id === slot.exerciseId
+              ? slot.slotLast
+              : (lastTime[slot.exerciseId] ?? slot.slotLast)
+          }
+          templateName={data.template?.name ?? null}
           picking={picking?.mode === "swap" && picking.slotKey === slot.key}
           onStartSwap={() => setPicking({ mode: "swap", slotKey: slot.key })}
           onCancelSwap={() => setPicking(null)}
@@ -177,6 +160,7 @@ function ExerciseCard({
   exercise,
   plannedName,
   last,
+  templateName,
   picking,
   onStartSwap,
   onCancelSwap,
@@ -190,6 +174,7 @@ function ExerciseCard({
   exercise: Exercise | undefined;
   plannedName: string | null;
   last: LastTime | null;
+  templateName: string | null;
   picking: boolean;
   onStartSwap: () => void;
   onCancelSwap: () => void;
@@ -200,10 +185,12 @@ function ExerciseCard({
 }) {
   const loadType = exercise?.load_type ?? "total";
   const ownSets = slot.sets.filter((s) => s.exercise_id === slot.exerciseId);
-  // Suggest the matching set from last time, or repeat this session's previous set. Sets from a different
-  // exercise done in this slot last time are shown, but not used as a suggestion.
-  const sameExercise = last && !last.substituted_by ? last : null;
-  const suggestion = sameExercise?.sets[ownSets.length] ?? ownSets.at(-1) ?? sameExercise?.sets.at(-1);
+  // Suggest the matching set from last time, or repeat this session's previous set. Numbers from a different
+  // exercise, or from this exercise on another program day (e.g. another machine), are shown but not suggested.
+  const differentExercise = last !== null && last.exercise_id !== slot.exerciseId;
+  const otherDay = last?.template_name && templateName && last.template_name !== templateName ? last.template_name : null;
+  const reference = last && !differentExercise && (!slot.planned || !otherDay) ? last : null;
+  const suggestion = reference?.sets[ownSets.length] ?? ownSets.at(-1) ?? reference?.sets.at(-1);
   const [editing, setEditing] = useState<LoggedSet | null>(null);
   const [form, setForm] = useState({ weight: "", reps: "", rir: "", notes: "" });
   const [touched, setTouched] = useState(false);
@@ -242,11 +229,15 @@ function ExerciseCard({
       if (editing) {
         onUpdated(await api<LoggedSet>(`/api/training/sets/${editing.id}`, { method: "PATCH", body: JSON.stringify(values) }));
       } else {
-        const planned = slot.planned && slot.planned.exercise_id !== slot.exerciseId ? slot.planned.exercise_id : null;
         onAdded(
           await api<LoggedSet>(`/api/training/sessions/${sessionId}/sets`, {
             method: "POST",
-            body: JSON.stringify({ exercise_id: slot.exerciseId, planned_exercise_id: planned, ...values }),
+            body: JSON.stringify({
+              exercise_id: slot.exerciseId,
+              planned_exercise_id: slot.planned?.exercise_id ?? null,
+              plan_occurrence: slot.occurrence,
+              ...values,
+            }),
           }),
         );
       }
@@ -297,13 +288,14 @@ function ExerciseCard({
       )}
 
       <p className="mt-2 text-sm text-muted">
-        {last?.substituted_by ? (
+        {last && differentExercise ? (
           <>
-            Last · {shortDate(last.day)}: did {last.substituted_by} instead, {last.summary}
+            Last · {shortDate(last.day)}: did {last.exercise_name} instead, {last.summary}
           </>
         ) : last ? (
           <>
-            Last · {shortDate(last.day)}: {last.sets.map((s) => formatSet(s, loadType)).join(", ")}
+            Last · {shortDate(last.day)}
+            {otherDay && ` (${otherDay})`}: {last.sets.map((s) => formatSet(s, loadType)).join(", ")}
           </>
         ) : (
           "No previous sets"
