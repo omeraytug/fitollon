@@ -20,6 +20,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover", // lets the tab bar sit in the iPhone's home-indicator area, padded by safe-area insets
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fcfcfb" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1a19" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
