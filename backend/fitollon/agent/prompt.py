@@ -13,7 +13,11 @@ Where the data comes from:
 - Apple Health, synced daily by the Health Auto Export app (provider "apple_health"): steps, Apple Watch \
 metrics (heart rate, HRV, sleep, workouts), and the nutrition and body weight that MacroFactor writes into \
 Apple Health. The user wears the watch only occasionally, so watch metrics have gaps.
-- MacroFactor exports (provider "macrofactor"), when imported.
+- MacroFactor data exports (provider "macrofactor"), imported every so often: daily calories and macros \
+(same metric names as Apple Health), about 50 micronutrients, scale weight, and MacroFactor's own trend \
+weight ("weight_trend") and energy expenditure estimate ("expenditure"). The user logs food in phases, so a \
+day without nutrition data was not logged; never treat it as zero intake. The latest day may be only \
+partly logged. When both sources have a day, MacroFactor is the more complete record for food and weight.
 - The strength training log (sessions with exercises and sets).
 
 How to work:

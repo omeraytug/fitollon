@@ -9,9 +9,20 @@ type SyncEvent = {
   received_at: string;
   source: string;
   status: string;
-  summary: Record<string, number> | null;
+  summary: { metric_days?: number; workouts?: number; file?: string } | null;
   error: string | null;
 };
+
+const SOURCES: Record<string, string> = {
+  health_auto_export: "Apple Health",
+  macrofactor_export: "MacroFactor import",
+};
+
+function describe(summary: NonNullable<SyncEvent["summary"]>): string {
+  const parts = [`${summary.metric_days ?? 0} metric-days`];
+  if (summary.workouts !== undefined) parts.push(`${summary.workouts} workouts`);
+  return parts.join(", ");
+}
 
 const card = "rounded-xl border border-hairline bg-surface p-5";
 const field = "mt-1 w-full rounded-md border border-hairline bg-page px-3 py-2 outline-none focus:border-accent";
@@ -125,9 +136,8 @@ export default function SettingsPage() {
                   <td className={`py-1.5 pr-3 whitespace-nowrap ${e.status === "ok" ? "text-good" : "text-critical"}`}>
                     {e.status === "ok" ? "✓ OK" : "✕ Error"}
                   </td>
-                  <td className="py-1.5 text-ink-2">
-                    {e.summary ? `${e.summary.metric_days} metric-days, ${e.summary.workouts} workouts` : e.error}
-                  </td>
+                  <td className="py-1.5 text-ink-2">{SOURCES[e.source] ?? e.source}</td>
+                  <td className="py-1.5 pl-3 text-ink-2">{e.summary ? describe(e.summary) : e.error}</td>
                 </tr>
               ))}
             </tbody>

@@ -36,7 +36,10 @@ def dashboard(session: Session = Depends(get_session)) -> dict:
 
     last = last_training_session(session)
     last_sync = session.scalars(
-        select(IngestEvent.received_at).where(IngestEvent.status == "ok").order_by(IngestEvent.id.desc()).limit(1)
+        select(IngestEvent.received_at)
+        .where(IngestEvent.source == "health_auto_export", IngestEvent.status == "ok")
+        .order_by(IngestEvent.id.desc())
+        .limit(1)
     ).first()
     return {
         "today": end.isoformat(),

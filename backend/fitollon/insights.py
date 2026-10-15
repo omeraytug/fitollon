@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 from fitollon.config import get_settings
 from fitollon.models import DailyMetric, TrainingSession
 
-# Friendly name -> metric names it may be stored under (first match wins). Apple Health names come
-# from Health Auto Export; MacroFactor writes nutrition and weight into Apple Health too.
+# Friendly name -> metric names it may be stored under (earlier names win). Apple Health names come from
+# Health Auto Export; the MacroFactor importer uses the same names for the quantities both apps have.
 KEY_METRICS: dict[str, list[str]] = {
+    "weight_trend": ["weight_trend"],
     "weight": ["weight_body_mass", "weight_&_body_mass", "body_mass"],
     "calories": ["dietary_energy"],
+    "expenditure": ["expenditure"],
     "protein": ["protein"],
     "carbs": ["carbohydrates"],
     "fat": ["total_fat"],
@@ -23,38 +25,39 @@ KEY_METRICS: dict[str, list[str]] = {
     "sleep": ["sleep_analysis.total_sleep", "sleep_analysis.asleep"],
 }
 
+# When several sources have the same day, which one to show. Food and weight are logged in MacroFactor;
+# everything measured by the phone or watch comes straight from Apple Health.
+LOGGED_FIRST = ["macrofactor", "apple_health"]
+MEASURED_FIRST = ["apple_health", "macrofactor"]
+PROVIDER_ORDER: dict[str, list[str]] = {"steps": MEASURED_FIRST, "active_energy": MEASURED_FIRST}
+
 
 def today() -> date:
     return datetime.now(ZoneInfo(get_settings().timezone)).date()
 
 
 def key_metric_series(session: Session, key: str, start: date, end: date) -> tuple[dict[date, float], str | None]:
-    """Daily values for a friendly metric name, preferring the first alias that has data."""
-    for name in KEY_METRICS[key]:
-        rows = session.execute(
-            select(DailyMetric.day, DailyMetric.value, DailyMetric.unit)
-            .where(DailyMetric.metric == name, DailyMetric.day.between(start, end))
-            .order_by(DailyMetric.day, DailyMetric.provider)
-        ).all()
-        if rows:
-            series: dict[date, float] = {}
-            for day, value, _ in rows:
-                series.setdefault(day, value)
-            return series, rows[-1].unit
-    return {}, None
+    """Daily values for a friendly metric name, taking each day from the preferred name and source."""
+    names = KEY_METRICS[key]
+    providers = PROVIDER_ORDER.get(key, LOGGED_FIRST)
+    rows = session.execute(
+        select(DailyMetric.day, DailyMetric.metric, DailyMetric.provider, DailyMetric.value, DailyMetric.unit).where(
+            DailyMetric.metric.in_(names), DailyMetric.day.between(start, end)
+        )
+    ).all()
 
+    def rank(metric: str, provider: str) -> tuple[int, int]:
+        return names.index(metric), providers.index(provider) if provider in providers else len(providers)
 
-def latest_value(session: Session, key: str) -> tuple[date, float, str | None] | None:
-    for name in KEY_METRICS[key]:
-        row = session.execute(
-            select(DailyMetric.day, DailyMetric.value, DailyMetric.unit)
-            .where(DailyMetric.metric == name)
-            .order_by(DailyMetric.day.desc())
-            .limit(1)
-        ).first()
-        if row:
-            return row.day, row.value, row.unit
-    return None
+    best: dict[date, tuple[tuple[int, int], float, str | None]] = {}
+    for day, metric, provider, value, unit in rows:
+        candidate = (rank(metric, provider), value, unit)
+        if day not in best or candidate[0] < best[day][0]:
+            best[day] = candidate
+    if not best:
+        return {}, None
+    series = {day: best[day][1] for day in sorted(best)}
+    return series, best[max(best)][2]
 
 
 def last_training_session(session: Session) -> TrainingSession | None:

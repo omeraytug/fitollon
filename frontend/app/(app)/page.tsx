@@ -22,8 +22,10 @@ type Dashboard = {
 };
 
 const LABELS: Record<string, string> = {
-  weight: "Weight",
+  weight_trend: "Trend weight",
+  weight: "Scale weight",
   calories: "Calories",
+  expenditure: "Expenditure",
   protein: "Protein",
   carbs: "Carbs",
   fat: "Fat",
