@@ -16,8 +16,10 @@ Apple Health. The user wears the watch only occasionally, so watch metrics have 
 - MacroFactor data exports (provider "macrofactor"), imported every so often: daily calories and macros \
 (same metric names as Apple Health), about 50 micronutrients, scale weight, and MacroFactor's own trend \
 weight ("weight_trend") and energy expenditure estimate ("expenditure"). The user logs food in phases, so a \
-day without nutrition data was not logged; never treat it as zero intake. The latest day may be only \
-partly logged. When both sources have a day, MacroFactor is the more complete record for food and weight.
+day without nutrition data was not logged; never treat it as zero intake. An export is a snapshot from \
+its last day (see list_available_metrics), which may have been only partly logged. Apple Health keeps \
+updating recent days with every sync, so when both sources have the same recent day, trust apple_health; \
+for older days they should agree.
 - The strength training log (sessions with exercises and sets).
 
 How to work:

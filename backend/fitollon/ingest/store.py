@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,12 @@ def upsert_metrics(session: Session, rows: Iterable[MetricRow], provider: str) -
         stmt = stmt.on_conflict_do_update(
             index_elements=["day", "metric", "provider"],
             set_={"value": stmt.excluded.value, "unit": stmt.excluded.unit, "updated_at": func.now()},
+            # Only real changes move updated_at, so it records when the value was last new information
+            # (the dashboard shows the freshest source). Re-sent or re-imported identical values don't count.
+            where=or_(
+                DailyMetric.value.is_distinct_from(stmt.excluded.value),
+                DailyMetric.unit.is_distinct_from(stmt.excluded.unit),
+            ),
         )
         session.execute(stmt)
     return len(values)

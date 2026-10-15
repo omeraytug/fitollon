@@ -25,33 +25,27 @@ KEY_METRICS: dict[str, list[str]] = {
     "sleep": ["sleep_analysis.total_sleep", "sleep_analysis.asleep"],
 }
 
-# When several sources have the same day, which one to show. Food and weight are logged in MacroFactor;
-# everything measured by the phone or watch comes straight from Apple Health.
-LOGGED_FIRST = ["macrofactor", "apple_health"]
-MEASURED_FIRST = ["apple_health", "macrofactor"]
-PROVIDER_ORDER: dict[str, list[str]] = {"steps": MEASURED_FIRST, "active_energy": MEASURED_FIRST}
-
 
 def today() -> date:
     return datetime.now(ZoneInfo(get_settings().timezone)).date()
 
 
 def key_metric_series(session: Session, key: str, start: date, end: date) -> tuple[dict[date, float], str | None]:
-    """Daily values for a friendly metric name, taking each day from the preferred name and source."""
+    """Daily values for a friendly metric name.
+
+    When several sources have the same day, the most recently changed value wins: a MacroFactor export is a
+    snapshot (its last day may be half-logged), while Apple Health keeps updating recent days with every sync.
+    """
     names = KEY_METRICS[key]
-    providers = PROVIDER_ORDER.get(key, LOGGED_FIRST)
     rows = session.execute(
-        select(DailyMetric.day, DailyMetric.metric, DailyMetric.provider, DailyMetric.value, DailyMetric.unit).where(
+        select(DailyMetric.day, DailyMetric.metric, DailyMetric.updated_at, DailyMetric.value, DailyMetric.unit).where(
             DailyMetric.metric.in_(names), DailyMetric.day.between(start, end)
         )
     ).all()
 
-    def rank(metric: str, provider: str) -> tuple[int, int]:
-        return names.index(metric), providers.index(provider) if provider in providers else len(providers)
-
-    best: dict[date, tuple[tuple[int, int], float, str | None]] = {}
-    for day, metric, provider, value, unit in rows:
-        candidate = (rank(metric, provider), value, unit)
+    best: dict[date, tuple[tuple[int, float], float, str | None]] = {}
+    for day, metric, updated_at, value, unit in rows:
+        candidate = ((names.index(metric), -updated_at.timestamp()), value, unit)
         if day not in best or candidate[0] < best[day][0]:
             best[day] = candidate
     if not best:
