@@ -69,38 +69,66 @@ def next_template(session: Session) -> WorkoutTemplate | None:
     return templates[(ids.index(last.template_id) + 1) % len(templates)]
 
 
-def last_performance(
-    session: Session, exercise_ids: list[int], exclude_session_id: int | None = None
-) -> dict[int, dict[str, Any]]:
-    """For each exercise, the sets from the most recent other session that included it.
+def plan_occurrences(template: WorkoutTemplate) -> list[int]:
+    """For each planned exercise, how many times the same exercise appeared earlier in the template."""
+    seen: dict[int, int] = {}
+    occurrences = []
+    for te in template.exercises:
+        occurrences.append(seen.get(te.exercise_id, 0))
+        seen[te.exercise_id] = occurrences[-1] + 1
+    return occurrences
 
-    If the exercise was last swapped out for another one, those sets are returned with "substituted_by" set,
-    so the user sees what they did in its place.
+
+def _last_dict(previous: TrainingSession, sets: list[TrainingSet]) -> dict[str, Any]:
+    return {
+        "session_id": previous.id,
+        "day": previous.day.isoformat(),
+        "template_name": previous.template.name if previous.template else None,
+        "exercise_id": sets[0].exercise_id,
+        "exercise_name": sets[0].exercise.name,
+        "sets": [{"weight_kg": s.weight_kg, "reps": s.reps, "rir": s.rir, "notes": s.notes} for s in sets],
+        "summary": ", ".join(format_set(s) for s in sets),
+    }
+
+
+def _latest(session: Session, *conditions, exclude_session_id: int | None) -> TrainingSession | None:
+    query = select(TrainingSession).where(*conditions).order_by(TrainingSession.day.desc(), TrainingSession.id.desc())
+    if exclude_session_id is not None:
+        query = query.where(TrainingSession.id != exclude_session_id)
+    return session.scalars(query.limit(1)).first()
+
+
+def last_for_exercise(session: Session, exercise_id: int, exclude_session_id: int | None = None) -> dict | None:
+    """The sets of this exercise from the most recent other session that included it, in any slot."""
+    previous = _latest(
+        session, TrainingSession.sets.any(TrainingSet.exercise_id == exercise_id), exclude_session_id=exclude_session_id
+    )
+    if previous is None:
+        return None
+    return _last_dict(previous, [s for s in previous.sets if s.exercise_id == exercise_id])
+
+
+def last_for_slot(
+    session: Session, template_id: int, planned_exercise_id: int, occurrence: int, exclude_session_id: int | None
+) -> dict | None:
+    """What was done in this plan slot the last time this template was trained, whichever exercise it was.
+
+    Falls back to the planned exercise's latest sets from any session (e.g. before the first time in this
+    template); "template_name" tells the caller where the numbers came from.
     """
-    result: dict[int, dict[str, Any]] = {}
-    for exercise_id in set(exercise_ids):
-        in_slot = (TrainingSet.exercise_id == exercise_id) | (TrainingSet.planned_exercise_id == exercise_id)
-        query = (
-            select(TrainingSession)
-            .where(TrainingSession.sets.any(in_slot))
-            .order_by(TrainingSession.day.desc(), TrainingSession.id.desc())
-            .limit(1)
-        )
-        if exclude_session_id is not None:
-            query = query.where(TrainingSession.id != exclude_session_id)
-        previous = session.scalars(query).first()
-        if previous is None:
-            continue
-        sets = [s for s in previous.sets if s.exercise_id == exercise_id]
-        substitute = None
-        if not sets:
-            sets = [s for s in previous.sets if s.planned_exercise_id == exercise_id]
-            substitute = sets[0].exercise.name
-        result[exercise_id] = {
-            "session_id": previous.id,
-            "day": previous.day.isoformat(),
-            "substituted_by": substitute,
-            "sets": [{"weight_kg": s.weight_kg, "reps": s.reps, "rir": s.rir, "notes": s.notes} for s in sets],
-            "summary": ", ".join(format_set(s) for s in sets),
-        }
-    return result
+
+    def in_slot(s) -> bool:
+        return s.planned_exercise_id == planned_exercise_id and (s.plan_occurrence or 0) == occurrence
+
+    previous = _latest(
+        session,
+        TrainingSession.template_id == template_id,
+        TrainingSession.sets.any(
+            (TrainingSet.planned_exercise_id == planned_exercise_id)
+            & (func.coalesce(TrainingSet.plan_occurrence, 0) == occurrence)
+        ),
+        exclude_session_id=exclude_session_id,
+    )
+    if previous is not None:
+        return _last_dict(previous, [s for s in previous.sets if in_slot(s)])
+    return last_for_exercise(session, planned_exercise_id, exclude_session_id)

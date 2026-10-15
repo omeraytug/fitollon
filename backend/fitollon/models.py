@@ -133,8 +133,10 @@ class TrainingSet(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True)
     exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"), index=True)
-    # Set when this exercise replaced a different one from the plan ("did X instead of Y").
+    # The plan slot this set was logged in: the planned exercise (which differs from exercise_id when the
+    # user swapped it) and which occurrence of it in the template (a template can list "Biceps of choice" twice).
     planned_exercise_id: Mapped[int | None] = mapped_column(ForeignKey("exercises.id"))
+    plan_occurrence: Mapped[int | None] = mapped_column(Integer)
     position: Mapped[int] = mapped_column(Integer)  # order within the session
     reps: Mapped[int | None] = mapped_column(Integer)
     weight_kg: Mapped[float | None] = mapped_column(Float)  # per the exercise's load_type

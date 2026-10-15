@@ -10,7 +10,14 @@ from fitollon.auth import require_user
 from fitollon.db import get_session
 from fitollon.insights import today
 from fitollon.models import Exercise, TemplateExercise, TrainingSession, TrainingSet, WorkoutTemplate
-from fitollon.training import get_or_create_exercise, last_performance, next_template, program
+from fitollon.training import (
+    get_or_create_exercise,
+    last_for_exercise,
+    last_for_slot,
+    next_template,
+    plan_occurrences,
+    program,
+)
 
 router = APIRouter(prefix="/api/training", dependencies=[Depends(require_user)])
 
@@ -56,7 +63,7 @@ def create_exercise(body: ExerciseCreate, session: Session = Depends(get_session
 def exercise_last_time(
     exercise_id: int, exclude_session_id: int | None = None, session: Session = Depends(get_session)
 ) -> dict | None:
-    return last_performance(session, [exercise_id], exclude_session_id).get(exercise_id)
+    return last_for_exercise(session, exercise_id, exclude_session_id)
 
 
 @router.patch("/exercises/{exercise_id}")
@@ -178,7 +185,9 @@ class SessionUpdate(BaseModel):
 
 class SetBody(BaseModel):
     exercise_id: int
+    # The plan slot: its planned exercise and which occurrence of it in the template. None for extras.
     planned_exercise_id: int | None = None
+    plan_occurrence: int | None = Field(default=None, ge=0, le=20)
     weight_kg: float | None = Field(default=None, ge=0, le=1000)
     reps: int | None = Field(default=None, ge=0, le=1000)
     rir: float | None = Field(default=None, ge=0, le=10)
@@ -197,6 +206,7 @@ def _set_dict(s: TrainingSet) -> dict:
         "id": s.id,
         "exercise_id": s.exercise_id,
         "planned_exercise_id": s.planned_exercise_id,
+        "plan_occurrence": s.plan_occurrence,
         "position": s.position,
         "weight_kg": s.weight_kg,
         "reps": s.reps,
@@ -207,8 +217,13 @@ def _set_dict(s: TrainingSet) -> dict:
 
 def _session_dict(session: Session, ts: TrainingSession) -> dict:
     exercises = {s.exercise_id: s.exercise for s in ts.sets}
+    slot_last_time = []
     if ts.template:
         exercises.update({te.exercise_id: te.exercise for te in ts.template.exercises})
+        slot_last_time = [
+            last_for_slot(session, ts.template.id, te.exercise_id, occurrence, exclude_session_id=ts.id)
+            for te, occurrence in zip(ts.template.exercises, plan_occurrences(ts.template), strict=True)
+        ]
     return {
         "id": ts.id,
         "day": ts.day.isoformat(),
@@ -217,7 +232,11 @@ def _session_dict(session: Session, ts: TrainingSession) -> dict:
         "template": _template_dict(ts.template) if ts.template else None,
         "sets": [_set_dict(s) for s in ts.sets],
         "exercises": {e.id: _exercise_dict(e) for e in exercises.values()},
-        "last_time": last_performance(session, list(exercises), exclude_session_id=ts.id),
+        # Per plan slot (same order as template.exercises), and per exercise for swaps and extras.
+        "slot_last_time": slot_last_time,
+        "last_time": {
+            e: last_for_exercise(session, e, exclude_session_id=ts.id) for e in {s.exercise_id for s in ts.sets}
+        },
     }
 
 
@@ -275,10 +294,8 @@ def delete_session(session_id: int, session: Session = Depends(get_session)) -> 
 def add_set(session_id: int, body: SetBody, session: Session = Depends(get_session)) -> dict:
     ts = _get(session, TrainingSession, session_id)
     _get(session, Exercise, body.exercise_id)
-    planned = body.planned_exercise_id if body.planned_exercise_id != body.exercise_id else None
     position = max((s.position for s in ts.sets), default=0) + 1
-    new_set = TrainingSet(position=position, **body.model_dump(exclude={"planned_exercise_id"}))
-    new_set.planned_exercise_id = planned
+    new_set = TrainingSet(position=position, **body.model_dump())
     ts.sets.append(new_set)
     session.flush()
     return _set_dict(new_set)

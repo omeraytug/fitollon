@@ -175,7 +175,7 @@ def _session_dict(ts: TrainingSession, exercise_filter: str | None = None) -> di
         if exercise_filter and exercise_filter.lower() not in s.exercise.name.lower():
             continue
         name = s.exercise.name
-        if s.planned_exercise is not None:
+        if s.planned_exercise is not None and s.planned_exercise_id != s.exercise_id:
             name += f" (instead of planned {s.planned_exercise.name})"
         exercises.setdefault(name, []).append(format_set(s))
     return {
