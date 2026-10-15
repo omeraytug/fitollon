@@ -12,7 +12,10 @@ const nextConfig: NextConfig = {
     },
   },
   async redirects() {
-    return [{ source: "/settings", destination: "/profile", permanent: true }];
+    return [
+      { source: "/settings", destination: "/profile", permanent: true },
+      { source: "/training/program", destination: "/program", permanent: true },
+    ];
   },
   // On Vercel, /api/* is routed to the Python backend by vercel.json before it reaches Next.js.
   // Locally, forward it to the FastAPI dev server.

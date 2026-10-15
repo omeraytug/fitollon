@@ -15,13 +15,51 @@ export type PlannedExercise = {
 
 export type Template = {
   id: number;
+  program_id: number;
   name: string;
   position: number;
   notes: string | null;
   exercises: PlannedExercise[];
 };
 
-export type Program = { templates: Template[]; next_template_id: number | null };
+export type ProgramSummary = {
+  id: number;
+  name: string;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  session_names: string[];
+  logged_sessions: number;
+  first_day: string | null;
+  last_day: string | null;
+};
+
+export type ProgramDetail = ProgramSummary & { templates: Template[]; next_template_id: number | null };
+
+export type SessionRef = { id: number; day: string; title: string; set_count: number; program_name: string | null };
+
+export type CycleSlot = {
+  template_id: number;
+  name: string;
+  status: "done" | "skipped" | "next" | "upcoming";
+  session: SessionRef | null;
+};
+
+export type Cycle = {
+  number: number;
+  current: boolean;
+  first_day: string | null;
+  last_day: string | null;
+  slots: CycleSlot[];
+};
+
+export type Overview = {
+  program: { id: number; name: string; is_active: boolean } | null;
+  templates: { id: number; name: string }[];
+  next_template_id: number | null;
+  cycles: Cycle[]; // newest first; the first is the current one for the active program
+  other_sessions: SessionRef[];
+};
 
 export type LoggedSet = {
   id: number;
@@ -57,7 +95,6 @@ export type SessionDetail = {
   last_time: Record<string, LastTime | null>;
 };
 
-export type SessionSummary = { id: number; day: string; title: string; set_count: number; exercises: string[] };
 
 export function repRange(min: number | null, max: number | null): string | null {
   if (min && max && min !== max) return `${min}–${max}`;

@@ -117,6 +117,15 @@ body {
     transform: scale(0.3);
   }
 }
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
 @keyframes shimmer {
   to {
     background-position: -200% 0;
@@ -154,6 +163,9 @@ body {
 .press:active {
   transform: scale(0.98);
 }
+.pulse {
+  animation: pulse-ring 2.2s ease-out infinite;
+}
 .skeleton {
   background: linear-gradient(90deg, var(--grid) 25%, var(--surface) 50%, var(--grid) 75%);
   background-size: 200% 100%;
@@ -171,6 +183,7 @@ body {
   .bar-in,
   .sweep,
   .pop,
+  .pulse,
   .skeleton {
     animation: none;
   }

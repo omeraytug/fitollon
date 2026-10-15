@@ -16,13 +16,8 @@ const TABS: Tab[] = [
     icon: House,
     match: (p) => p === "/" || ["/weight", "/nutrition", "/steps"].some((h) => p.startsWith(h)),
   },
-  {
-    href: "/training",
-    label: "Training",
-    icon: Dumbbell,
-    match: (p) => p.startsWith("/training") && !p.startsWith("/training/program"),
-  },
-  { href: "/training/program", label: "Program", icon: ClipboardList, match: (p) => p.startsWith("/training/program") },
+  { href: "/training", label: "Training", icon: Dumbbell, match: (p) => p.startsWith("/training") },
+  { href: "/program", label: "Program", icon: ClipboardList, match: (p) => p.startsWith("/program") },
   { href: "/chat", label: "Coach", icon: MessageCircle, match: (p) => p.startsWith("/chat") },
 ];
 
