@@ -1,23 +1,25 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fitollon.auth import require_user
 from fitollon.db import get_session
+from fitollon.derived import EARLIEST
 from fitollon.insights import KEY_METRICS, key_metric_series, last_training_session, today
 from fitollon.models import IngestEvent, Memory, Profile
+from fitollon.training import next_template
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
 
 
-@router.get("/dashboard")
-def dashboard(session: Session = Depends(get_session)) -> dict:
+@router.get("/home")
+def home(session: Session = Depends(get_session)) -> dict:
+    """Today's numbers with their 7-day averages, plus what's next in training."""
     end = today()
     start = end - timedelta(days=29)
-    week_start = end - timedelta(days=6)
 
     metrics = {}
     for key in KEY_METRICS:
@@ -25,9 +27,11 @@ def dashboard(session: Session = Depends(get_session)) -> dict:
         if not series:
             continue
         last_day = max(series)
-        week = [v for d, v in series.items() if d >= week_start]
+        # Averages use the 7 days before today: today's food log and steps are still filling up.
+        week = [v for d, v in series.items() if end - timedelta(days=7) <= d < end]
         metrics[key] = {
             "unit": unit,
+            "today": series.get(end),
             "latest": series[last_day],
             "latest_day": last_day.isoformat(),
             "avg7": sum(week) / len(week) if week else None,
@@ -35,6 +39,7 @@ def dashboard(session: Session = Depends(get_session)) -> dict:
         }
 
     last = last_training_session(session)
+    upcoming = next_template(session)
     last_sync = session.scalars(
         select(IngestEvent.received_at)
         .where(IngestEvent.source == "health_auto_export", IngestEvent.status == "ok")
@@ -44,9 +49,24 @@ def dashboard(session: Session = Depends(get_session)) -> dict:
     return {
         "today": end.isoformat(),
         "metrics": metrics,
-        "last_training": {"day": last.day.isoformat(), "title": last.title} if last else None,
+        "last_training": {"id": last.id, "day": last.day.isoformat(), "title": last.title} if last else None,
+        "next_training": {"id": upcoming.id, "name": upcoming.name} if upcoming else None,
         "last_sync": last_sync.isoformat() if last_sync else None,
     }
+
+
+@router.get("/series")
+def series(keys: str, days: int = Query(90, ge=0), session: Session = Depends(get_session)) -> dict:
+    """Daily values for the history pages; days=0 means everything."""
+    end = today()
+    start = end - timedelta(days=days - 1) if days else EARLIEST
+    result = {}
+    for key in keys.split(","):
+        if key not in KEY_METRICS:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown metric {key!r}")
+        values, unit = key_metric_series(session, key, start, end)
+        result[key] = {"unit": unit, "points": [{"day": d.isoformat(), "value": v} for d, v in values.items()]}
+    return {"today": end.isoformat(), "series": result}
 
 
 class ProfileBody(BaseModel):
