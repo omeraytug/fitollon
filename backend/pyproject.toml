@@ -1,0 +1,33 @@
+[project]
+name = "fitollon"
+version = "0.1.0"
+description = "Fitollon backend: data ingestion, storage and the AI coach agent"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "fastapi>=0.143.1",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.16.0",
+    "pyjwt>=2.15.1",
+    "sqlalchemy>=2",
+    "strands-agents[anthropic,openai]>=1.61.0",
+]
+
+[tool.vercel]
+entrypoint = "main:app"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Body", "fastapi.Header"]
