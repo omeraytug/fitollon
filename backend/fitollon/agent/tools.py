@@ -10,7 +10,7 @@ from strands import tool
 
 from fitollon.db import get_engine, session_scope
 from fitollon.models import DailyMetric, Exercise, Memory, TrainingSession, TrainingSet, Workout
-from fitollon.training import format_set, get_or_create_exercise, next_template, program, rep_range
+from fitollon.training import active_program, format_set, get_or_create_exercise, next_template, rep_range
 
 MAX_RANGE_DAYS = 400
 MAX_SQL_ROWS = 200
@@ -295,12 +295,14 @@ def log_training_session(
 
 @tool
 def get_training_program() -> dict[str, Any]:
-    """The user's training program: the cycle of sessions in order, each with its planned exercises
+    """The user's active training program: the cycle of sessions in order, each with its planned exercises
     (sets, rep range, RIR target, setup notes), plus which session is next in the cycle.
     """
     with session_scope() as session:
+        active = active_program(session)
         upcoming = next_template(session)
         return {
+            "program": active.name if active else None,
             "next_session": upcoming.name if upcoming else None,
             "cycle": [
                 {
@@ -318,7 +320,7 @@ def get_training_program() -> dict[str, Any]:
                         for te in t.exercises
                     ],
                 }
-                for t in program(session)
+                for t in (active.templates if active else [])
             ],
         }
 
@@ -360,8 +362,8 @@ def run_sql(query: str) -> dict[str, Any]:
     active_energy_kcal, avg_heart_rate, max_heart_rate, distance_km), training_sessions(id, day, title, notes,
     template_id), training_sets(session_id, exercise_id, planned_exercise_id, position, reps, weight_kg, rir, rpe,
     duration_s, distance_m, notes), exercises(id, name, load_type 'total'|'per_side', muscle_group),
-    workout_templates(id, name, position), template_exercises(template_id, exercise_id, position, sets, rep_min,
-    rep_max, rir_target, notes).
+    programs(id, name, is_active), workout_templates(id, program_id, name, position),
+    template_exercises(template_id, exercise_id, position, sets, rep_min, rep_max, rir_target, notes).
 
     Args:
         query: A single SELECT (or WITH ... SELECT) statement.

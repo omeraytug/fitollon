@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from fitollon.models import Exercise, TrainingSession, TrainingSet, WorkoutTemplate
+from fitollon.models import Exercise, Program, TrainingSession, TrainingSet, WorkoutTemplate
 
 LOAD_TYPES = ("total", "per_side")
 
@@ -48,8 +48,24 @@ def get_or_create_exercise(session: Session, name: str, load_type: str | None = 
     return exercise
 
 
+def active_program(session: Session) -> Program | None:
+    return session.scalars(select(Program).where(Program.is_active)).first()
+
+
+def ensure_active_program(session: Session) -> Program:
+    """The active program, creating a first one if there is none yet."""
+    active = active_program(session)
+    if active is None:
+        active = Program(name="My program", is_active=True)
+        session.add(active)
+        session.flush()
+    return active
+
+
 def program(session: Session) -> list[WorkoutTemplate]:
-    return list(session.scalars(select(WorkoutTemplate).order_by(WorkoutTemplate.position, WorkoutTemplate.id)))
+    """The active program's sessions in cycle order."""
+    active = active_program(session)
+    return list(active.templates) if active else []
 
 
 def next_template(session: Session) -> WorkoutTemplate | None:
@@ -67,6 +83,28 @@ def next_template(session: Session) -> WorkoutTemplate | None:
     if last is None or last.template_id not in ids:
         return templates[0]
     return templates[(ids.index(last.template_id) + 1) % len(templates)]
+
+
+def cycles(session: Session, templates: list[WorkoutTemplate]) -> list[list[TrainingSession]]:
+    """The program's logged sessions in date order, split into cycles.
+
+    A new cycle starts when a session comes at or before the previous one's place in the program, so skipping
+    a session keeps the cycle going and repeating one starts the next.
+    """
+    order = {t.id: i for i, t in enumerate(templates)}
+    if not order:
+        return []
+    sessions = session.scalars(
+        select(TrainingSession)
+        .where(TrainingSession.template_id.in_(list(order)))
+        .order_by(TrainingSession.day, TrainingSession.id)
+    ).all()
+    groups: list[list[TrainingSession]] = []
+    for ts in sessions:
+        if not groups or order[ts.template_id] <= order[groups[-1][-1].template_id]:
+            groups.append([])
+        groups[-1].append(ts)
+    return groups
 
 
 def plan_occurrences(template: WorkoutTemplate) -> list[int]:

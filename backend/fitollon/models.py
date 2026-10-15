@@ -3,15 +3,18 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -74,16 +77,40 @@ class Exercise(Base):
     load_type: Mapped[str] = mapped_column(String(20), default="total", server_default="total")
 
 
+class Program(Base):
+    """A training program (e.g. one block): its sessions repeat as a cycle. Exactly one is active at a time."""
+
+    __tablename__ = "programs"
+    __table_args__ = (
+        # At most one active program: a unique index over only the active rows.
+        Index("ix_programs_one_active", "is_active", unique=True, postgresql_where=text("is_active")),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    notes: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    templates: Mapped[list["WorkoutTemplate"]] = relationship(
+        back_populates="program",
+        cascade="all, delete-orphan",
+        order_by="[WorkoutTemplate.position, WorkoutTemplate.id]",
+    )
+
+
 class WorkoutTemplate(Base):
-    """One session of the training cycle (e.g. "Upper A"); position gives the order within the cycle."""
+    """One session of a program's cycle (e.g. "Upper A"); position gives the order within the cycle."""
 
     __tablename__ = "workout_templates"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    program_id: Mapped[int] = mapped_column(ForeignKey("programs.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     position: Mapped[int] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)
 
+    program: Mapped[Program] = relationship(back_populates="templates")
     exercises: Mapped[list["TemplateExercise"]] = relationship(
         back_populates="template", cascade="all, delete-orphan", order_by="TemplateExercise.position"
     )
