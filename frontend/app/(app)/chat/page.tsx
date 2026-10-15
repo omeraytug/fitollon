@@ -46,6 +46,17 @@ export default function ChatPage() {
     loadConversations();
   }, [loadConversations]);
   useEffect(() => {
+    // A question typed on Home arrives as ?q=…; ask it once and clean up the URL.
+    const question = new URLSearchParams(window.location.search).get("q");
+    if (!question) return;
+    const timer = setTimeout(() => {
+      window.history.replaceState(null, "", "/chat");
+      send(question);
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on arrival
+  }, []);
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
 
@@ -197,7 +208,7 @@ export default function ChatPage() {
             e.preventDefault();
             send(input);
           }}
-          className="sticky bottom-0 flex items-end gap-2 bg-page pt-2 pb-4"
+          className="sticky bottom-(--tabbar-h) flex items-end gap-2 bg-page pt-2 pb-3"
         >
           <textarea
             value={input}
@@ -209,7 +220,7 @@ export default function ChatPage() {
               }
             }}
             rows={Math.min(6, Math.max(1, input.split("\n").length))}
-            placeholder="Ask about your training, nutrition, weight, sleep…"
+            placeholder="Ask your coach…"
             className="min-w-0 flex-1 resize-none rounded-xl border border-hairline bg-surface px-4 py-3 outline-none focus:border-accent"
           />
           <button
