@@ -341,6 +341,7 @@ dependencies = [
     { name = "pyjwt" },
     { name = "sqlalchemy" },
     { name = "strands-agents", extra = ["anthropic", "openai"] },
+    { name = "tzdata" },
 ]
 
 [package.dev-dependencies]
@@ -358,6 +359,7 @@ requires-dist = [
     { name = "pyjwt", specifier = ">=2.15.1" },
     { name = "sqlalchemy", specifier = ">=2" },
     { name = "strands-agents", extras = ["anthropic", "openai"], specifier = ">=1.61.0" },
+    { name = "tzdata", specifier = ">=2026.5" },
 ]
 
 [package.metadata.requires-dev]
