@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from fitollon.agent.runner import stream_chat
 from fitollon.auth import require_user
-from fitollon.db import get_session
+from fitollon.db import DbSession
 from fitollon.models import Conversation
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
@@ -34,7 +34,7 @@ async def chat(body: ChatRequest) -> StreamingResponse:
 
 
 @router.get("/conversations")
-def list_conversations(session: Session = Depends(get_session)) -> list[dict]:
+def list_conversations(session: Session = DbSession) -> list[dict]:
     rows = session.execute(
         select(Conversation.id, Conversation.title, Conversation.updated_at)
         .order_by(Conversation.updated_at.desc())
@@ -61,7 +61,7 @@ def _display_messages(messages: list[dict]) -> list[dict]:
 
 
 @router.get("/conversations/{conversation_id}")
-def get_conversation(conversation_id: str, session: Session = Depends(get_session)) -> dict:
+def get_conversation(conversation_id: str, session: Session = DbSession) -> dict:
     conversation = session.get(Conversation, conversation_id)
     if conversation is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found")
@@ -69,7 +69,7 @@ def get_conversation(conversation_id: str, session: Session = Depends(get_sessio
 
 
 @router.delete("/conversations/{conversation_id}")
-def delete_conversation(conversation_id: str, session: Session = Depends(get_session)) -> dict:
+def delete_conversation(conversation_id: str, session: Session = DbSession) -> dict:
     conversation = session.get(Conversation, conversation_id)
     if conversation is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found")

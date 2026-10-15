@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
 
+from fastapi import Depends
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
@@ -33,3 +34,8 @@ def get_session() -> Iterator[Session]:
     """FastAPI dependency."""
     with session_scope() as session:
         yield session
+
+
+# Route parameter default. scope="function" commits before the response is sent, so the client's next request
+# already sees the change and a failed commit becomes an error response instead of a silent 200.
+DbSession = Depends(get_session, scope="function")

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fitollon.auth import require_user
-from fitollon.db import get_session
+from fitollon.db import DbSession
 from fitollon.derived import EARLIEST
 from fitollon.insights import KEY_METRICS, key_metric_series, last_training_session, today
 from fitollon.models import IngestEvent, Memory, Profile
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
 
 
 @router.get("/home")
-def home(session: Session = Depends(get_session)) -> dict:
+def home(session: Session = DbSession) -> dict:
     """Today's numbers with their 7-day averages, plus what's next in training."""
     end = today()
     start = end - timedelta(days=29)
@@ -56,7 +56,7 @@ def home(session: Session = Depends(get_session)) -> dict:
 
 
 @router.get("/series")
-def series(keys: str, days: int = Query(90, ge=0), session: Session = Depends(get_session)) -> dict:
+def series(keys: str, days: int = Query(90, ge=0), session: Session = DbSession) -> dict:
     """Daily values for the history pages; days=0 means everything."""
     end = today()
     start = end - timedelta(days=days - 1) if days else EARLIEST
@@ -75,7 +75,7 @@ class ProfileBody(BaseModel):
 
 
 @router.get("/profile")
-def get_profile(session: Session = Depends(get_session)) -> dict:
+def get_profile(session: Session = DbSession) -> dict:
     profile = session.get(Profile, 1)
     memories = session.scalars(select(Memory).order_by(Memory.id)).all()
     return {
@@ -86,7 +86,7 @@ def get_profile(session: Session = Depends(get_session)) -> dict:
 
 
 @router.put("/profile")
-def put_profile(body: ProfileBody, session: Session = Depends(get_session)) -> dict:
+def put_profile(body: ProfileBody, session: Session = DbSession) -> dict:
     profile = session.get(Profile, 1) or Profile(id=1)
     profile.about, profile.goals = body.about, body.goals
     session.add(profile)
@@ -94,7 +94,7 @@ def put_profile(body: ProfileBody, session: Session = Depends(get_session)) -> d
 
 
 @router.delete("/memories/{memory_id}")
-def delete_memory(memory_id: int, session: Session = Depends(get_session)) -> dict:
+def delete_memory(memory_id: int, session: Session = DbSession) -> dict:
     memory = session.get(Memory, memory_id)
     if memory is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Memory not found")
@@ -103,7 +103,7 @@ def delete_memory(memory_id: int, session: Session = Depends(get_session)) -> di
 
 
 @router.get("/sync-events")
-def sync_events(session: Session = Depends(get_session)) -> list[dict]:
+def sync_events(session: Session = DbSession) -> list[dict]:
     events = session.scalars(select(IngestEvent).order_by(IngestEvent.id.desc()).limit(10)).all()
     return [
         {
