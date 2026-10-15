@@ -55,7 +55,7 @@ export default function TrainingPage() {
         <h1 className="text-3xl font-semibold tracking-tight">Training</h1>
         {data.program && (
           <Link
-            href="/program"
+            href="/programs"
             className="press flex items-center gap-1.5 rounded-full border border-hairline bg-surface px-3 py-1.5 text-sm text-ink-2 hover:text-ink"
           >
             <ClipboardList size={15} className="text-accent" />
@@ -72,10 +72,10 @@ export default function TrainingPage() {
             Add the sessions of your cycle with their exercises, and this page follows you through each cycle.
           </p>
           <Link
-            href="/program"
+            href="/programs"
             className="press mt-4 inline-block rounded-full bg-accent px-5 py-2 text-sm font-medium text-accent-ink"
           >
-            Go to Program
+            Go to Programs
           </Link>
         </section>
       ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, Copy, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { CompactCycle } from "@/components/cycle";
@@ -24,25 +24,22 @@ function stagger(i: number) {
   return { "--i": i } as React.CSSProperties;
 }
 
-export default function ProgramPage() {
+type Loaded = { detail: ProgramDetail; history: Overview | null };
+
+export default function ProgramsPage() {
   const [programs, setPrograms] = useState<ProgramSummary[] | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [detail, setDetail] = useState<ProgramDetail | null>(null);
-  const [history, setHistory] = useState<Overview | null>(null);
+  const [open, setOpen] = useState<number[]>([]);
+  const [loaded, setLoaded] = useState<Record<number, Loaded>>({});
   const [creating, setCreating] = useState(false);
 
-  const loadPrograms = useCallback(async (select?: number) => {
-    const list = await api<ProgramSummary[]>("/api/training/programs");
-    setPrograms(list);
-    const fromUrl = Number(new URLSearchParams(window.location.search).get("id"));
-    const wanted = select ?? (list.some((p) => p.id === fromUrl) ? fromUrl : undefined);
-    setSelectedId((current) => wanted ?? (list.some((p) => p.id === current) ? current : (list[0]?.id ?? null)));
+  const loadPrograms = useCallback(async () => {
+    setPrograms(await api<ProgramSummary[]>("/api/training/programs"));
   }, []);
 
   const loadDetail = useCallback(async (id: number) => {
-    const program = await api<ProgramDetail>(`/api/training/programs/${id}`);
-    setDetail(program);
-    setHistory(program.is_active ? null : await api<Overview>(`/api/training/overview?program_id=${id}`));
+    const detail = await api<ProgramDetail>(`/api/training/programs/${id}`);
+    const history = detail.is_active ? null : await api<Overview>(`/api/training/overview?program_id=${id}`);
+    setLoaded((current) => ({ ...current, [id]: { detail, history } }));
   }, []);
 
   useEffect(() => {
@@ -51,258 +48,261 @@ export default function ProgramPage() {
     return () => clearTimeout(timer);
   }, [loadPrograms]);
 
-  useEffect(() => {
-    if (selectedId === null) return;
-    window.history.replaceState(null, "", `/program?id=${selectedId}`);
-    const timer = setTimeout(() => loadDetail(selectedId), 0);
-    return () => clearTimeout(timer);
-  }, [selectedId, loadDetail]);
-
-  async function refresh(select?: number) {
-    await loadPrograms(select);
-    if ((select ?? selectedId) !== null) await loadDetail((select ?? selectedId)!);
+  function toggle(id: number) {
+    if (open.includes(id)) {
+      setOpen(open.filter((o) => o !== id));
+    } else {
+      setOpen([...open, id]);
+      loadDetail(id);
+    }
   }
 
-  async function activate() {
-    await api(`/api/training/programs/${detail!.id}/activate`, { method: "POST" });
-    refresh();
+  async function reload(ids: number[] = open) {
+    await Promise.all([loadPrograms(), ...ids.map(loadDetail)]);
   }
 
-  async function duplicate() {
-    const copy = await api<ProgramSummary>("/api/training/programs", {
-      method: "POST",
-      body: JSON.stringify({ name: `${detail!.name} (copy)`, copy_from: detail!.id }),
-    });
-    refresh(copy.id);
+  async function openProgram(id: number) {
+    setOpen((current) => (current.includes(id) ? current : [...current, id]));
+    await reload([...open, id]);
   }
 
-  async function remove() {
-    if (!confirm(`Delete ${detail!.name}? Sessions you logged with it are kept, but no longer linked to its plan.`)) return;
-    await api(`/api/training/programs/${detail!.id}`, { method: "DELETE" });
-    setDetail(null);
-    setSelectedId(null);
-    refresh(programs!.find((p) => p.is_active)?.id);
-  }
-
-  async function addSession() {
-    await api(`/api/training/programs/${detail!.id}/templates`, {
-      method: "POST",
-      body: JSON.stringify({ name: `Day ${detail!.templates.length + 1}`, exercises: [] }),
-    });
-    loadDetail(detail!.id);
-  }
-
-  async function move(id: number, direction: "up" | "down") {
-    await api(`/api/training/templates/${id}/move?direction=${direction}`, { method: "POST" });
-    loadDetail(detail!.id);
-  }
-
-  async function removeTemplate(template: Template) {
-    if (!confirm(`Delete ${template.name} from ${detail!.name}? Logged sessions are kept.`)) return;
-    await api(`/api/training/templates/${template.id}`, { method: "DELETE" });
-    loadDetail(detail!.id);
+  async function remove(program: ProgramSummary) {
+    if (!confirm(`Delete ${program.name}? Sessions you logged with it are kept, but no longer linked to its plan.`)) return;
+    await api(`/api/training/programs/${program.id}`, { method: "DELETE" });
+    setOpen(open.filter((o) => o !== program.id));
+    loadPrograms();
   }
 
   if (!programs) {
     return (
       <div className="flex flex-col gap-4">
         <div className="skeleton h-9 w-40 rounded-lg" />
-        <div className="skeleton h-28 rounded-2xl" />
-        <div className="skeleton h-64 rounded-2xl" />
+        <div className="skeleton h-20 rounded-2xl" />
+        <div className="skeleton h-20 rounded-2xl" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="rise text-3xl font-semibold tracking-tight">Program</h1>
-
-      <div className="rise -mx-4 flex gap-2 overflow-x-auto px-4 pb-1" style={stagger(1)} role="tablist" aria-label="Programs">
-        {programs.map((p) => (
-          <button
-            key={p.id}
-            role="tab"
-            aria-selected={p.id === selectedId}
-            onClick={() => {
-              setCreating(false);
-              setSelectedId(p.id);
-            }}
-            className={`press flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm ${
-              p.id === selectedId && !creating
-                ? "border-accent bg-accent-wash font-medium text-ink"
-                : "border-hairline bg-surface text-ink-2 hover:text-ink"
-            }`}
-          >
-            {p.is_active && <span className="size-2 rounded-full bg-good" aria-label="Active" />}
-            {p.name}
+    <div className="flex flex-col gap-3">
+      <div className="rise mb-1 flex items-end justify-between gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight">Programs</h1>
+        {programs.length > 0 && !creating && (
+          <button onClick={() => setCreating(true)} className={`${pill} text-ink-2 hover:border-accent hover:text-ink`}>
+            <Plus size={15} />
+            New program
           </button>
-        ))}
-        <button
-          onClick={() => setCreating(true)}
-          className={`press flex shrink-0 items-center gap-1 rounded-full border border-dashed px-4 py-2 text-sm ${
-            creating ? "border-accent text-ink" : "border-hairline text-ink-2 hover:text-ink"
-          }`}
-        >
-          <Plus size={15} />
-          New program
-        </button>
+        )}
       </div>
 
-      {creating || programs.length === 0 ? (
+      {(creating || programs.length === 0) && (
         <NewProgram
           programs={programs}
           onCancel={programs.length ? () => setCreating(false) : undefined}
           onCreated={(id) => {
             setCreating(false);
-            refresh(id);
+            openProgram(id);
           }}
         />
-      ) : (
-        detail &&
-        detail.id === selectedId && (
-          <>
-            <ProgramHeader
-              key={detail.id}
-              program={detail}
-              onRename={async (name) => {
-                await api(`/api/training/programs/${detail.id}`, { method: "PATCH", body: JSON.stringify({ name }) });
-                refresh();
-              }}
-              onActivate={activate}
-              onDuplicate={duplicate}
-              onDelete={remove}
-            />
-
-            {detail.templates.map((t, i) => (
-              <TemplateEditor
-                key={t.id}
-                template={t}
-                index={i}
-                first={i === 0}
-                last={i === detail.templates.length - 1}
-                onMove={(direction) => move(t.id, direction)}
-                onDelete={() => removeTemplate(t)}
-                onSaved={() => loadDetail(detail.id)}
-              />
-            ))}
-
-            <button
-              onClick={addSession}
-              className="press flex items-center justify-center gap-1.5 rounded-2xl border border-dashed border-hairline py-3 text-sm text-ink-2 hover:border-accent hover:text-ink"
-            >
-              <Plus size={15} />
-              Add session to the cycle
-            </button>
-
-            {history && history.cycles.length > 0 && (
-              <section className="rise rounded-2xl border border-hairline bg-surface p-5" style={stagger(3)}>
-                <h2 className="font-medium">Logged with this program</h2>
-                <div className="mt-1 divide-y divide-grid">
-                  {history.cycles.map((cycle) => (
-                    <CompactCycle key={cycle.number} cycle={cycle} />
-                  ))}
-                </div>
-              </section>
-            )}
-          </>
-        )
       )}
+
+      {programs.map((p, i) => (
+        <ProgramCard
+          key={p.id}
+          program={p}
+          i={i + 1}
+          open={open.includes(p.id)}
+          loaded={loaded[p.id]}
+          onToggle={() => toggle(p.id)}
+          onChanged={() => reload()}
+          onDuplicated={openProgram}
+          onDelete={() => remove(p)}
+        />
+      ))}
     </div>
   );
 }
 
-function ProgramHeader({
+function ProgramCard({
   program,
-  onRename,
-  onActivate,
-  onDuplicate,
+  i,
+  open,
+  loaded,
+  onToggle,
+  onChanged,
+  onDuplicated,
   onDelete,
 }: {
-  program: ProgramDetail;
-  onRename: (name: string) => Promise<void>;
-  onActivate: () => void;
-  onDuplicate: () => void;
+  program: ProgramSummary;
+  i: number;
+  open: boolean;
+  loaded: Loaded | undefined;
+  onToggle: () => void;
+  onChanged: () => Promise<void>;
+  onDuplicated: (id: number) => void;
   onDelete: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(program.name);
+  const detail = loaded?.detail;
 
   const logged =
     program.logged_sessions > 0 && program.first_day && program.last_day
       ? `${program.logged_sessions} logged · ${shortDate(program.first_day)} – ${shortDate(program.last_day)}`
       : "nothing logged yet";
 
+  async function call(path: string, init: RequestInit) {
+    await api(path, init);
+    await onChanged();
+  }
+
+  async function duplicate() {
+    const copy = await api<ProgramSummary>("/api/training/programs", {
+      method: "POST",
+      body: JSON.stringify({ name: `${program.name} (copy)`, copy_from: program.id }),
+    });
+    onDuplicated(copy.id);
+  }
+
   return (
-    <section className="rise rounded-2xl border border-hairline bg-surface p-5" style={stagger(2)}>
-      <div className="flex flex-wrap items-center gap-2">
-        {editing ? (
-          <form
-            className="flex min-w-0 flex-1 items-center gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!name.trim()) return;
-              await onRename(name.trim());
-              setEditing(false);
-            }}
-          >
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={`${field} min-w-0 flex-1 text-lg font-semibold`}
-              aria-label="Program name"
-            />
-            <button type="submit" className="press grid size-9 place-items-center rounded-full bg-accent text-accent-ink" aria-label="Save name">
-              <Check size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setName(program.name);
-                setEditing(false);
-              }}
-              className="press grid size-9 place-items-center rounded-full text-muted hover:text-ink"
-              aria-label="Cancel"
-            >
-              <X size={16} />
-            </button>
-          </form>
-        ) : (
-          <>
-            <h2 className="text-xl font-semibold tracking-tight">{program.name}</h2>
-            <button onClick={() => setEditing(true)} className="press text-muted hover:text-ink" aria-label="Rename">
-              <Pencil size={15} />
-            </button>
+    <section
+      className={`rise rounded-2xl border bg-surface transition-colors ${open ? "border-accent/40" : "border-hairline"}`}
+      style={stagger(i)}
+    >
+      <button onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 p-4 text-left sm:p-5">
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="truncate text-lg font-semibold tracking-tight">{program.name}</span>
             {program.is_active && (
-              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-accent-wash px-3 py-1 text-xs font-medium text-ink">
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent-wash px-2.5 py-0.5 text-xs font-medium text-ink">
                 <span className="size-2 rounded-full bg-good" />
                 Active
               </span>
             )}
-          </>
-        )}
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        {program.session_names.length} sessions per cycle · {logged}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {!program.is_active && (
-          <button onClick={onActivate} className="press flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink">
-            <Check size={15} />
-            Make active
-          </button>
-        )}
-        <button onClick={onDuplicate} className={`${pill} text-ink-2 hover:border-accent hover:text-ink`}>
-          <Copy size={14} />
-          Duplicate
-        </button>
-        {!program.is_active && (
-          <button onClick={onDelete} className={`${pill} text-muted hover:border-critical hover:text-critical`}>
-            <Trash2 size={14} />
-            Delete
-          </button>
-        )}
-      </div>
+          </span>
+          <span className="mt-0.5 block text-sm text-muted">
+            {program.session_names.length} sessions per cycle · {logged}
+          </span>
+        </span>
+        <span className={`grid size-9 shrink-0 place-items-center rounded-full ${open ? "bg-accent-wash text-accent" : "text-ink-2"}`}>
+          <ChevronDown size={20} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+
+      {open && (
+        <div className="rise flex flex-col gap-3 border-t border-grid p-4 sm:p-5">
+          {renaming ? (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!name.trim()) return;
+                await call(`/api/training/programs/${program.id}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ name: name.trim() }),
+                });
+                setRenaming(false);
+              }}
+            >
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`${field} min-w-0 flex-1 px-3 py-2 text-base`}
+                aria-label="Program name"
+              />
+              <button type="submit" className="press grid size-9 place-items-center rounded-full bg-accent text-accent-ink" aria-label="Save name">
+                <Check size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setName(program.name);
+                  setRenaming(false);
+                }}
+                className="press grid size-9 place-items-center rounded-full text-muted hover:text-ink"
+                aria-label="Cancel"
+              >
+                <X size={16} />
+              </button>
+            </form>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {!program.is_active && (
+                <button
+                  onClick={() => call(`/api/training/programs/${program.id}/activate`, { method: "POST" })}
+                  className="press flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink"
+                >
+                  <Check size={15} />
+                  Make active
+                </button>
+              )}
+              <button onClick={() => setRenaming(true)} className={`${pill} text-ink-2 hover:border-accent hover:text-ink`}>
+                <Pencil size={14} />
+                Rename
+              </button>
+              <button onClick={duplicate} className={`${pill} text-ink-2 hover:border-accent hover:text-ink`}>
+                <Copy size={14} />
+                Duplicate
+              </button>
+              {!program.is_active && (
+                <button onClick={onDelete} className={`${pill} text-muted hover:border-critical hover:text-critical`}>
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
+
+          {!detail ? (
+            <div className="skeleton h-32 rounded-xl" />
+          ) : (
+            <>
+              {detail.templates.map((t, n) => (
+                <TemplateEditor
+                  key={t.id}
+                  template={t}
+                  index={n}
+                  first={n === 0}
+                  last={n === detail.templates.length - 1}
+                  onMove={(direction) =>
+                    call(`/api/training/templates/${t.id}/move?direction=${direction}`, { method: "POST" })
+                  }
+                  onDelete={() => {
+                    if (confirm(`Delete ${t.name} from ${program.name}? Logged sessions are kept.`)) {
+                      call(`/api/training/templates/${t.id}`, { method: "DELETE" });
+                    }
+                  }}
+                  onSaved={onChanged}
+                />
+              ))}
+              <button
+                onClick={() =>
+                  call(`/api/training/programs/${program.id}/templates`, {
+                    method: "POST",
+                    body: JSON.stringify({ name: `Day ${detail.templates.length + 1}`, exercises: [] }),
+                  })
+                }
+                className="press flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-hairline py-3 text-sm text-ink-2 hover:border-accent hover:text-ink"
+              >
+                <Plus size={15} />
+                Add session to the cycle
+              </button>
+
+              {loaded.history && loaded.history.cycles.length > 0 && (
+                <div className="mt-2">
+                  <h3 className="font-medium">Logged with this program</h3>
+                  <div className="divide-y divide-grid">
+                    {loaded.history.cycles.map((cycle) => (
+                      <CompactCycle key={cycle.number} cycle={cycle} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -321,8 +321,8 @@ function NewProgram({
 
   return (
     <form
-      className="rise rounded-2xl border border-hairline bg-surface p-5"
-      style={stagger(2)}
+      className="rise rounded-2xl border border-accent/40 bg-surface p-5"
+      style={stagger(1)}
       onSubmit={async (e) => {
         e.preventDefault();
         const created = await api<ProgramSummary>("/api/training/programs", {
@@ -476,7 +476,7 @@ function TemplateEditor({
 
   if (!open) {
     return (
-      <section className="rise rounded-2xl border border-hairline bg-surface p-4 sm:p-5" style={stagger(3 + index)}>
+      <section className="rise rounded-xl border border-grid p-4" style={stagger(index + 1)}>
         <div className="flex items-center gap-2">
           {badge}
           <h3 className="min-w-0 flex-1 truncate text-lg font-semibold">{template.name}</h3>
@@ -506,7 +506,7 @@ function TemplateEditor({
   }
 
   return (
-    <section className="rise rounded-2xl border border-accent/40 bg-surface p-4 sm:p-5" style={stagger(3 + index)}>
+    <section className="rounded-xl border border-accent/40 p-4">
       <div className="flex items-center gap-2">
         {badge}
         <input
