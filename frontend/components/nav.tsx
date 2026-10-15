@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleUser, ClipboardList, Dumbbell, House, MessageCircle, type LucideIcon } from "lucide-react";
+import { CircleUser, ClipboardList, Dumbbell, House, Images, MessageCircle, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
@@ -17,8 +17,9 @@ const TABS: Tab[] = [
     match: (p) => p === "/" || ["/weight", "/nutrition", "/steps"].some((h) => p.startsWith(h)),
   },
   { href: "/training", label: "Training", icon: Dumbbell, match: (p) => p.startsWith("/training") },
-  { href: "/program", label: "Program", icon: ClipboardList, match: (p) => p.startsWith("/program") },
+  { href: "/programs", label: "Programs", icon: ClipboardList, match: (p) => p.startsWith("/programs") },
   { href: "/chat", label: "Coach", icon: MessageCircle, match: (p) => p.startsWith("/chat") },
+  { href: "/photos", label: "Photos", icon: Images, match: (p) => p.startsWith("/photos") },
 ];
 
 function ProfileButton({ active }: { active: boolean }) {
@@ -39,10 +40,11 @@ function Bars({ pathname }: { pathname: string | null }) {
     <>
       <header className="sticky top-0 z-30 border-b border-hairline bg-surface/85 backdrop-blur-md">
         <nav className="mx-auto flex max-w-5xl items-center gap-1 px-4 py-2">
-          <Link href="/" className="mr-4 flex items-center gap-2 font-semibold tracking-tight">
+          {/* Brand only; Home is the Home tab, so two controls don't lead to the same page. */}
+          <span className="mr-4 flex items-center gap-2 font-semibold tracking-tight select-none">
             <Logo className="size-7" />
             Fitollon
-          </Link>
+          </span>
           <div className="hidden flex-1 items-center gap-1 sm:flex">
             {TABS.map((tab) => {
               const active = tab.match(path);
@@ -68,7 +70,7 @@ function Bars({ pathname }: { pathname: string | null }) {
 
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-30 grid h-(--tabbar-h) grid-cols-4 border-t border-hairline bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid h-(--tabbar-h) grid-cols-5 border-t border-hairline bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
       >
         {TABS.map((tab) => {
           const active = tab.match(path);

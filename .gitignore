@@ -227,3 +227,6 @@ __marimo__/
 
 # Personal data exports (MacroFactor, Excel training logs, Apple Health) dropped in for importing
 /imports/
+
+# Photos uploaded during local development
+/frontend/.media/

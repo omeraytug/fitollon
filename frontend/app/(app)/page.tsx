@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { CountUp } from "@/components/count-up";
+import { useSignedUrls } from "@/components/media/use-signed-urls";
 import { SparkBars, Sparkline } from "@/components/sparkline";
 import { api } from "@/lib/api";
+import type { MediaItem } from "@/lib/media";
 import { addDays, displayUnit, formatDay, formatNumber, formatValue, longDate, type Point } from "@/lib/format";
 
 type MetricSummary = {
@@ -24,14 +26,18 @@ type Home = {
   metrics: Record<string, MetricSummary | undefined>;
   last_training: { id: number; day: string; title: string | null } | null;
   next_training: { id: number; name: string } | null;
+  targets: Goals | null;
+  hero: MediaItem | null;
   last_sync: string | null;
 };
 
+type Goals = { calories: number | null; protein: number | null; carbs: number | null; fat: number | null };
+
 const MACROS = [
-  { key: "protein", label: "Protein", kcalPerGram: 4, color: "var(--series-3)" },
-  { key: "carbs", label: "Carbs", kcalPerGram: 4, color: "var(--series-4)" },
-  { key: "fat", label: "Fat", kcalPerGram: 9, color: "var(--series-5)" },
-];
+  { key: "protein", label: "Protein", color: "var(--series-3)" },
+  { key: "carbs", label: "Carbs", color: "var(--series-4)" },
+  { key: "fat", label: "Fat", color: "var(--series-5)" },
+] as const;
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -104,6 +110,8 @@ function Card({
 
 function Hero({ data, onStart }: { data: Home; onStart: (templateId: number) => void }) {
   const [now, setNow] = useState<{ hello: string; synced: string | null } | null>(null);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  const photo = useSignedUrls(data.hero ? [data.hero.pathname] : [])?.[data.hero?.pathname ?? ""];
   useEffect(() => {
     // Clock-dependent text is computed after mount so it matches the viewer's own time zone.
     const update = () => setNow({ hello: greeting(), synced: data.last_sync ? ago(data.last_sync) : null });
@@ -115,48 +123,75 @@ function Hero({ data, onStart }: { data: Home; onStart: (templateId: number) => 
     };
   }, [data.last_sync]);
 
+  // With a photo (your latest outdoors or gym shot), the text sits on a dark gradient over it.
+  const onPhoto = Boolean(data.hero);
+  const soft = onPhoto ? "text-white/80" : "text-ink-2";
+
   return (
     <section
       style={stagger(0)}
-      className="rise relative overflow-hidden rounded-3xl border border-hairline bg-linear-to-br from-(--hero-from) to-(--hero-to) p-5 sm:p-7"
+      className={`rise relative overflow-hidden rounded-3xl border p-5 sm:p-7 ${
+        onPhoto
+          ? "flex min-h-64 flex-col justify-end border-transparent bg-neutral-900 text-white sm:min-h-72"
+          : "border-hairline bg-linear-to-br from-(--hero-from) to-(--hero-to)"
+      }`}
     >
-      <svg
-        viewBox="0 0 400 120"
-        aria-hidden
-        className="pointer-events-none absolute top-5 right-4 w-[38%] max-w-xs text-accent opacity-25 sm:top-7 sm:right-7"
-      >
-        <path
-          d="M0 78H130L155 44L190 104L222 22L252 88L272 64H400"
-          pathLength={1}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="draw"
-        />
-      </svg>
-      <p className="relative text-sm text-ink-2">{longDate(data.today)}</p>
+      {onPhoto ? (
+        <>
+          {photo && (
+            // eslint-disable-next-line @next/next/no-img-element -- private, signed URL
+            <img
+              src={photo}
+              alt=""
+              onLoad={() => setPhotoLoaded(true)}
+              className={`absolute inset-0 size-full object-cover transition-opacity duration-700 ${photoLoaded ? "opacity-100" : "opacity-0"}`}
+            />
+          )}
+          <span className="absolute inset-0 bg-linear-to-t from-black/80 via-black/35 to-black/10" />
+        </>
+      ) : (
+        <svg
+          viewBox="0 0 400 120"
+          aria-hidden
+          className="pointer-events-none absolute top-5 right-4 w-[38%] max-w-xs text-accent opacity-25 sm:top-7 sm:right-7"
+        >
+          <path
+            d="M0 78H130L155 44L190 104L222 22L252 88L272 64H400"
+            pathLength={1}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="draw"
+          />
+        </svg>
+      )}
+      <p className={`relative text-sm ${soft}`}>{longDate(data.today)}</p>
       <h1 className="relative mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{now?.hello ?? " "}</h1>
-      <p className="relative mt-1 h-5 text-sm text-ink-2">
+      <p className={`relative mt-1 h-5 text-sm ${soft}`}>
         {now && (now.synced ? `Apple Health synced ${now.synced}` : "No Apple Health sync yet")}
       </p>
 
       {(data.next_training || data.last_training) && (
-        <div className="relative mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-hairline pt-4">
+        <div
+          className={`relative mt-5 flex flex-wrap items-end justify-between gap-4 border-t pt-4 ${
+            onPhoto ? "border-white/20" : "border-hairline"
+          }`}
+        >
           <div className="flex gap-8">
             {data.next_training && (
               <div>
-                <p className="text-xs tracking-wide text-ink-2 uppercase">Next up</p>
+                <p className={`text-xs tracking-wide uppercase ${soft}`}>Next up</p>
                 <p className="mt-0.5 text-lg font-semibold">{data.next_training.name}</p>
               </div>
             )}
             {data.last_training && (
               <Link href={`/training/${data.last_training.id}`} className="group">
-                <p className="text-xs tracking-wide text-ink-2 uppercase">Last session</p>
-                <p className="mt-0.5 text-lg group-hover:text-accent">
+                <p className={`text-xs tracking-wide uppercase ${soft}`}>Last session</p>
+                <p className={`mt-0.5 text-lg ${onPhoto ? "group-hover:text-white/80" : "group-hover:text-accent"}`}>
                   {data.last_training.title ?? "Session"}{" "}
-                  <span className="text-sm text-ink-2">· {formatDay(data.last_training.day, data.today)}</span>
+                  <span className={`text-sm ${soft}`}>· {formatDay(data.last_training.day, data.today)}</span>
                 </p>
               </Link>
             )}
@@ -214,16 +249,45 @@ function WeightCard({ data, i }: { data: Home; i: number }) {
   );
 }
 
+/** Progress toward a goal; past the goal the bar stays full and the text says how far over. */
+function GoalBar({ value, goal, color, i }: { value: number; goal: number; color: string; i?: number }) {
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-grid" role="progressbar" aria-valuenow={value} aria-valuemax={goal}>
+      <div
+        className="sweep h-full rounded-full"
+        style={{ width: `${Math.min(value / goal, 1) * 100}%`, backgroundColor: color, ...(i !== undefined ? stagger(i) : {}) }}
+      />
+    </div>
+  );
+}
+
 function CaloriesCard({ data, i }: { data: Home; i: number }) {
   const calories = data.metrics.calories;
   const expenditure = data.metrics.expenditure;
   if (!calories) return null;
+  const goal = data.targets?.calories ?? null;
+  const eaten = calories.today ?? 0;
   const balance = calories.avg7 !== null && expenditure ? calories.avg7 - expenditure.latest : null;
+
+  let caption = calories.today === null ? "Nothing logged yet today" : "Eaten today";
+  if (goal !== null && calories.today !== null) {
+    caption = eaten <= goal ? `${formatNumber(goal - eaten, 0)} kcal left` : `${formatNumber(eaten - goal, 0)} kcal over`;
+  }
 
   return (
     <Card href="/nutrition" icon={Flame} title="Calories" i={i}>
-      <Big value={calories.today} unit={calories.unit} />
-      <p className="text-xs text-muted">{calories.today === null ? "Nothing logged yet today" : "Eaten today"}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight">
+        {calories.today === null ? <span className="text-muted">—</span> : <CountUp value={eaten} />}
+        <span className="ml-1 text-base font-normal text-muted">
+          {goal !== null ? `/ ${formatNumber(goal, 0)} kcal` : "kcal"}
+        </span>
+      </p>
+      {goal !== null && (
+        <div className="mt-2">
+          <GoalBar value={eaten} goal={goal} color="var(--series-1)" i={i} />
+        </div>
+      )}
+      <p className="mt-1.5 text-xs text-muted">{caption}</p>
       <p className="mt-2 text-sm text-ink-2">
         {calories.avg7 !== null && `7-day avg ${formatValue(calories.avg7, calories.unit)}`}
         {expenditure && ` · burning ~${formatValue(expenditure.latest, expenditure.unit)}`}
@@ -247,52 +311,38 @@ function CaloriesCard({ data, i }: { data: Home; i: number }) {
 }
 
 function MacrosCard({ data, i }: { data: Home; i: number }) {
-  const rows = MACROS.map((m) => ({ ...m, metric: data.metrics[m.key] })).filter((m) => m.metric);
+  const rows = MACROS.map((m) => ({ ...m, metric: data.metrics[m.key], goal: data.targets?.[m.key] ?? null })).filter(
+    (m) => m.metric,
+  );
   if (rows.length === 0) return null;
-  const split = rows.map((m) => ({ ...m, kcal: (m.metric!.today ?? 0) * m.kcalPerGram }));
-  const total = split.reduce((sum, m) => sum + m.kcal, 0);
 
   return (
     <Card href="/nutrition" icon={Wheat} title="Macros" i={i}>
-      {total > 0 ? (
-        <div className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full" aria-label="Today's calories by macro">
-          {split.map((m) => (
-            <span
-              key={m.key}
-              className="sweep rounded-full"
-              style={{ flexGrow: m.kcal, backgroundColor: m.color }}
-              title={`${m.label} ${Math.round((m.kcal / total) * 100)}% of today's calories`}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="mt-3 h-2.5 rounded-full bg-grid" />
-      )}
-      <table className="mt-3 w-full text-sm tabular-nums">
-        <thead>
-          <tr className="text-xs text-muted">
-            <th className="pb-1 text-left font-normal" />
-            <th className="pb-1 text-right font-normal">Today</th>
-            <th className="pb-1 text-right font-normal">7-day avg</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((m) => (
-            <tr key={m.key}>
-              <td className="py-1">
-                <span className="mr-2 inline-block size-2.5 rounded-full" style={{ backgroundColor: m.color }} />
-                {m.label}
-              </td>
-              <td className="py-1 text-right font-medium">
-                {m.metric!.today === null ? "—" : formatValue(m.metric!.today, m.metric!.unit, 0)}
-              </td>
-              <td className="py-1 text-right text-ink-2">
-                {m.metric!.avg7 === null ? "—" : formatValue(m.metric!.avg7, m.metric!.unit, 0)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <ul className="mt-3 flex flex-col gap-3.5 text-sm tabular-nums">
+        {rows.map((m) => {
+          const today = m.metric!.today;
+          return (
+            <li key={m.key}>
+              <div className="flex items-baseline gap-2">
+                <span className="inline-block size-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+                <span>{m.label}</span>
+                <span className="ml-auto font-medium">
+                  {today === null ? "—" : formatNumber(today, 0)}
+                  <span className="font-normal text-muted">{m.goal !== null ? ` / ${formatNumber(m.goal, 0)} g` : " g"}</span>
+                </span>
+              </div>
+              {m.goal !== null && (
+                <div className="mt-1.5">
+                  <GoalBar value={today ?? 0} goal={m.goal} color={m.color} i={i} />
+                </div>
+              )}
+              {m.metric!.avg7 !== null && (
+                <p className="mt-1 text-xs text-muted">7-day avg {formatValue(m.metric!.avg7, m.metric!.unit, 0)}</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }
