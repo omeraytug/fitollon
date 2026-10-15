@@ -30,9 +30,6 @@ const LABELS: Record<string, string> = {
   carbs: "Carbs",
   fat: "Fat",
   steps: "Steps",
-  active_energy: "Active energy",
-  resting_hr: "Resting heart rate",
-  sleep: "Sleep",
 };
 
 export default function DashboardPage() {

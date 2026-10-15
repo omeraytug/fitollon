@@ -21,9 +21,6 @@ KEY_METRICS: dict[str, list[str]] = {
     "carbs": ["carbohydrates"],
     "fat": ["total_fat"],
     "steps": ["step_count"],
-    "active_energy": ["active_energy"],
-    "resting_hr": ["resting_heart_rate"],
-    "sleep": ["sleep_analysis.total_sleep", "sleep_analysis.asleep"],
 }
 
 
