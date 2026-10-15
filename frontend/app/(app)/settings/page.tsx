@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
@@ -28,6 +29,7 @@ const card = "rounded-xl border border-hairline bg-surface p-5";
 const field = "mt-1 w-full rounded-md border border-hairline bg-page px-3 py-2 outline-none focus:border-accent";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [events, setEvents] = useState<SyncEvent[]>([]);
   const [saved, setSaved] = useState("");
@@ -43,6 +45,11 @@ export default function SettingsPage() {
     await api("/api/profile", { method: "PUT", body: JSON.stringify({ about: profile.about, goals: profile.goals }) });
     setSaved("Saved");
     setTimeout(() => setSaved(""), 2000);
+  }
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
   }
 
   async function deleteMemory(id: number) {
@@ -144,6 +151,10 @@ export default function SettingsPage() {
           </table>
         )}
       </section>
+
+      <button onClick={logout} className="self-start pb-6 text-sm text-muted hover:text-ink">
+        Log out
+      </button>
     </div>
   );
 }
