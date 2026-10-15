@@ -5,7 +5,6 @@ import {
   HistoryHeader,
   HistorySkeleton,
   Stat,
-  rangeStart,
   useRange,
   useSeries,
   type SeriesResponse,
@@ -16,17 +15,17 @@ import { daysBetween, formatDay, formatDelta, formatNumber, shortDay } from "@/l
 const KEYS = ["weight", "weight_trend"];
 
 export default function WeightPage() {
-  const [days, setDays] = useRange("weight", 90);
-  const { data, error } = useSeries(KEYS, days);
+  const [range, setRange] = useRange("weight", 90);
+  const { data, error } = useSeries(KEYS, range);
 
   return (
     <div className="flex flex-col gap-4">
-      <HistoryHeader title="Weight" days={days} onRange={setDays} />
+      <HistoryHeader title="Weight" range={range} onRange={setRange} />
       {error && <p className="text-critical">{error}</p>}
       {!data ? (
         !error && <HistorySkeleton />
       ) : (
-        <Content key={data.days} data={data} />
+        <Content key={`${data.start}:${data.end}`} data={data} />
       )}
     </div>
   );
@@ -35,7 +34,7 @@ export default function WeightPage() {
 function Content({ data }: { data: SeriesResponse }) {
   const scale = data.series.weight?.points ?? [];
   const trend = data.series.weight_trend?.points ?? [];
-  const start = rangeStart(data);
+  const start = data.start;
   const first = trend[0];
   const last = trend[trend.length - 1];
   const change = first && last ? last.value - first.value : null;
@@ -67,14 +66,14 @@ function Content({ data }: { data: SeriesResponse }) {
           i={4}
           label="Weigh-ins"
           value={String(scale.length)}
-          detail={`of ${daysBetween(start, data.today) + 1} days`}
+          detail={`of ${daysBetween(start, data.end) + 1} days`}
         />
       </div>
       <ChartCard i={5}>
         <TimeChart
           label="Scale weight and trend weight"
           start={start}
-          end={data.today}
+          end={data.end}
           unit="kg"
           digits={1}
           series={[

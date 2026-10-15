@@ -10,6 +10,8 @@ export type ChartSeries = {
   color: string;
   kind: "line" | "dots" | "bars";
   points: Point[];
+  /** Dashed, for reference lines such as goals. */
+  dashed?: boolean;
 };
 
 type Bucket = { day: string; values: Record<string, number | undefined> };
@@ -66,13 +68,14 @@ function barPath(x: number, width: number, top: number, bottom: number): string 
   return `M${x},${bottom}V${top + r}Q${x},${top} ${x + r},${top}H${x + width - r}Q${x + width},${top} ${x + width},${top + r}V${bottom}Z`;
 }
 
-function Swatch({ s }: { s: Pick<ChartSeries, "kind" | "color"> }) {
+function Swatch({ s }: { s: Pick<ChartSeries, "kind" | "color" | "dashed"> }) {
+  if (s.kind === "line" && s.dashed) return <span className="inline-block w-3.5 border-t-2 border-dashed" style={{ borderColor: s.color }} />;
   if (s.kind === "line") return <span className="inline-block h-0.5 w-3.5 rounded-full" style={{ backgroundColor: s.color }} />;
   if (s.kind === "dots") return <span className="inline-block size-2 rounded-full" style={{ backgroundColor: s.color }} />;
   return <span className="inline-block size-2.5 rounded-[3px]" style={{ backgroundColor: s.color }} />;
 }
 
-export function Legend({ series }: { series: Pick<ChartSeries, "key" | "label" | "kind" | "color">[] }) {
+export function Legend({ series }: { series: Pick<ChartSeries, "key" | "label" | "kind" | "color" | "dashed">[] }) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2">
       {series.map((s) => (
@@ -253,16 +256,20 @@ export function TimeChart({
               const hv = hovered?.values[s.key];
               return (
                 <g key={s.key}>
-                  <path
-                    d={d}
-                    pathLength={1}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth={2}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    className="draw"
-                  />
+                  {s.dashed ? (
+                    <path d={d} fill="none" stroke={s.color} strokeWidth={1.5} strokeDasharray="5 4" className="rise" />
+                  ) : (
+                    <path
+                      d={d}
+                      pathLength={1}
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth={2}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      className="draw"
+                    />
+                  )}
                   {hv !== undefined && (
                     <circle cx={cx(hover!)} cy={cy(hv)} r={4.5} fill={s.color} stroke="var(--surface)" strokeWidth={2} />
                   )}

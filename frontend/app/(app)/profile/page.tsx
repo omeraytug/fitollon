@@ -4,6 +4,7 @@ import { Check, LogOut, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { GoalsCard } from "@/components/goals-card";
 import { api } from "@/lib/api";
 
 type Profile = { about: string; goals: string; memories: { id: number; content: string }[] };
@@ -11,7 +12,7 @@ type SyncEvent = {
   received_at: string;
   source: string;
   status: string;
-  summary: { metric_days?: number; workouts?: number; file?: string } | null;
+  summary: { metric_days?: number; workouts?: number; goal_days?: number; file?: string } | null;
   error: string | null;
 };
 
@@ -23,6 +24,7 @@ const SOURCES: Record<string, string> = {
 function describe(summary: NonNullable<SyncEvent["summary"]>): string {
   const parts = [`${summary.metric_days ?? 0} metric-days`];
   if (summary.workouts !== undefined) parts.push(`${summary.workouts} workouts`);
+  if (summary.goal_days) parts.push(`${summary.goal_days} goal rows`);
   return parts.join(", ");
 }
 
@@ -71,7 +73,9 @@ export default function ProfilePage() {
     <div className="flex flex-col gap-4">
       <h1 className="rise text-3xl font-semibold tracking-tight">Profile</h1>
 
-      <form onSubmit={save} className={card} style={{ "--i": 1 } as React.CSSProperties}>
+      <GoalsCard i={1} />
+
+      <form onSubmit={save} className={card} style={{ "--i": 2 } as React.CSSProperties}>
         <h2 className="font-medium">What your coach should know</h2>
         <p className="mt-1 text-sm text-ink-2">Included in every conversation.</p>
         <label className="mt-4 block text-sm font-medium" htmlFor="about">
@@ -104,7 +108,7 @@ export default function ProfilePage() {
         </div>
       </form>
 
-      <section className={card} style={{ "--i": 2 } as React.CSSProperties}>
+      <section className={card} style={{ "--i": 3 } as React.CSSProperties}>
         <h2 className="font-medium">Coach memories</h2>
         <p className="mt-1 text-sm text-ink-2">Facts the coach saved from your conversations.</p>
         {profile.memories.length === 0 ? (
@@ -123,7 +127,7 @@ export default function ProfilePage() {
         )}
       </section>
 
-      <section className={card} style={{ "--i": 3 } as React.CSSProperties}>
+      <section className={card} style={{ "--i": 4 } as React.CSSProperties}>
         <h2 className="font-medium">Recent syncs</h2>
         {events.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No syncs received yet.</p>

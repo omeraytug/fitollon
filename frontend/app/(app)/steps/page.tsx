@@ -6,7 +6,6 @@ import {
   HistorySkeleton,
   Stat,
   isWeekly,
-  rangeStart,
   useRange,
   useSeries,
   type SeriesResponse,
@@ -15,14 +14,14 @@ import { TimeChart } from "@/components/time-chart";
 import { addDays, formatDay, formatNumber, mean, type Point } from "@/lib/format";
 
 export default function StepsPage() {
-  const [days, setDays] = useRange("steps", 30);
-  const { data, error } = useSeries(["steps"], days);
+  const [range, setRange] = useRange("steps", 30);
+  const { data, error } = useSeries(["steps"], range);
 
   return (
     <div className="flex flex-col gap-4">
-      <HistoryHeader title="Steps" days={days} onRange={setDays} />
+      <HistoryHeader title="Steps" range={range} onRange={setRange} />
       {error && <p className="text-critical">{error}</p>}
-      {!data ? !error && <HistorySkeleton /> : <Content key={data.days} data={data} />}
+      {!data ? !error && <HistorySkeleton /> : <Content key={`${data.start}:${data.end}`} data={data} />}
     </div>
   );
 }
@@ -70,8 +69,8 @@ function Content({ data }: { data: SeriesResponse }) {
       <ChartCard i={4}>
         <TimeChart
           label="Steps per day"
-          start={rangeStart(data)}
-          end={data.today}
+          start={data.start}
+          end={data.end}
           unit="steps"
           digits={0}
           zeroBased

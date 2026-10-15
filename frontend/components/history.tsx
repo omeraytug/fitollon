@@ -14,87 +14,151 @@ export const RANGES = [
   { days: 0, label: "All" },
 ];
 
+/** A preset (the last N days, 0 = everything) or a custom start..end. */
+export type Range = { days: number } | { start: string; end: string };
+
 export type SeriesResponse = {
   today: string;
+  /** The days actually covered; for "All", from the first day with data. */
+  start: string;
+  end: string;
   series: Record<string, { unit: string | null; points: Point[] }>;
-  /** The range this response was loaded for; charts key on it so they animate in with new data. */
-  days: number;
+  /** Nutrition goals in effect on each day (only for nutrition metrics). */
+  targets?: ({ day: string } & Record<"calories" | "protein" | "carbs" | "fat", number | null>)[];
 };
+
+function localToday(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+function isRange(value: unknown): value is Range {
+  if (!value || typeof value !== "object") return false;
+  const r = value as Record<string, unknown>;
+  if (typeof r.days === "number") return RANGES.some((preset) => preset.days === r.days);
+  return typeof r.start === "string" && typeof r.end === "string" && r.start <= r.end;
+}
 
 /** The chosen range, remembered per page in this browser. */
 export function useRange(page: string, fallback: number) {
-  const [days, setDays] = useState(fallback);
+  const [range, setRange] = useState<Range>({ days: fallback });
   useEffect(() => {
     try {
-      const saved = Number(localStorage.getItem(`range:${page}`));
-      if (RANGES.some((r) => r.days === saved) && localStorage.getItem(`range:${page}`) !== null) {
-        const timer = setTimeout(() => setDays(saved), 0);
+      const saved = JSON.parse(localStorage.getItem(`range:${page}`) ?? "null");
+      if (isRange(saved)) {
+        const timer = setTimeout(() => setRange(saved), 0);
         return () => clearTimeout(timer);
       }
     } catch {
-      // storage unavailable (private mode); keep the default
+      // storage unavailable (private mode) or an old format; keep the default
     }
   }, [page]);
-  function choose(next: number) {
-    setDays(next);
+  function choose(next: Range) {
+    setRange(next);
     try {
-      localStorage.setItem(`range:${page}`, String(next));
+      localStorage.setItem(`range:${page}`, JSON.stringify(next));
     } catch {
       // ignore
     }
   }
-  return [days, choose] as const;
+  return [range, choose] as const;
 }
 
-export function useSeries(keys: string[], days: number) {
+export function useSeries(keys: string[], range: Range) {
   const [data, setData] = useState<SeriesResponse | null>(null);
   const [error, setError] = useState("");
-  const query = keys.join(",");
+  const query = `keys=${keys.join(",")}&${"days" in range ? `days=${range.days}` : `start=${range.start}&end=${range.end}`}`;
   useEffect(() => {
     let current = true;
-    api<Omit<SeriesResponse, "days">>(`/api/series?keys=${query}&days=${days}`).then(
-      (response) => current && setData({ ...response, days }),
+    api<SeriesResponse>(`/api/series?${query}`).then(
+      (response) => {
+        if (current) {
+          setError("");
+          setData(response);
+        }
+      },
       (e: Error) => current && setError(e.message),
     );
     return () => {
       current = false;
     };
-  }, [query, days]);
+  }, [query]);
   return { data, error };
 }
 
 export function HistoryHeader({
   title,
-  days,
+  range,
   onRange,
 }: {
   title: string;
-  days: number;
-  onRange: (days: number) => void;
+  range: Range;
+  onRange: (range: Range) => void;
 }) {
+  const custom = "start" in range;
+  const button = (active: boolean) =>
+    `press rounded-full px-3 py-1 text-sm ${active ? "bg-accent text-accent-ink" : "text-ink-2 hover:text-ink"}`;
+  const dateField = "rounded-lg border border-hairline bg-surface px-3 py-1.5 text-base outline-none focus:border-accent sm:text-sm";
+
   return (
-    <div className="rise flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <Link href="/" className="-ml-1 inline-flex items-center text-sm text-ink-2 hover:text-ink">
-          <ChevronLeft size={16} />
-          Home
-        </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-      </div>
-      <div className="flex rounded-full border border-hairline bg-surface p-0.5" role="group" aria-label="Range">
-        {RANGES.map((r) => (
+    <div className="rise flex flex-col gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Link href="/" className="-ml-1 inline-flex items-center text-sm text-ink-2 hover:text-ink">
+            <ChevronLeft size={16} />
+            Home
+          </Link>
+          <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        </div>
+        <div className="flex rounded-full border border-hairline bg-surface p-0.5" role="group" aria-label="Range">
+          {RANGES.map((r) => (
+            <button
+              key={r.days}
+              onClick={() => onRange({ days: r.days })}
+              aria-pressed={!custom && range.days === r.days}
+              className={button(!custom && range.days === r.days)}
+            >
+              {r.label}
+            </button>
+          ))}
           <button
-            key={r.days}
-            onClick={() => onRange(r.days)}
-            aria-pressed={days === r.days}
-            className={`press rounded-full px-3 py-1 text-sm ${
-              days === r.days ? "bg-accent text-accent-ink" : "text-ink-2 hover:text-ink"
-            }`}
+            onClick={() => {
+              if (custom) return;
+              const today = localToday(); // read on click: the page is prerendered without a clock
+              onRange({ start: addDays(today, -29), end: today });
+            }}
+            aria-pressed={custom}
+            className={button(custom)}
           >
-            {r.label}
+            Custom
           </button>
-        ))}
+        </div>
       </div>
+      {custom && (
+        <div className="flex flex-wrap items-center gap-2 self-end text-sm text-ink-2">
+          <label className="flex items-center gap-2">
+            From
+            <input
+              type="date"
+              value={range.start}
+              max={range.end}
+              onChange={(e) => e.target.value && onRange({ start: e.target.value, end: range.end })}
+              className={dateField}
+            />
+          </label>
+          <label className="flex items-center gap-2">
+            to
+            <input
+              type="date"
+              value={range.end}
+              min={range.start}
+              max={localToday()}
+              onChange={(e) => e.target.value && onRange({ start: range.start, end: e.target.value })}
+              className={dateField}
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }
@@ -131,14 +195,13 @@ export function HistorySkeleton() {
   );
 }
 
-/** First day shown: the range's start, or the earliest data point for "All". */
-export function rangeStart(data: SeriesResponse): string {
-  if (data.days) return addDays(data.today, -(data.days - 1));
-  const firsts = Object.values(data.series).flatMap((s) => (s.points.length ? [s.points[0].day] : []));
-  return firsts.length ? firsts.sort()[0] : data.today;
-}
-
 /** Bars average into weeks past ~4 months, where single days get too thin to read. */
 export function isWeekly(data: SeriesResponse): boolean {
-  return daysBetween(rangeStart(data), data.today) > 120;
+  return daysBetween(data.start, data.end) > 120;
+}
+
+/** Days in the range before today (today's log and steps are still filling up). */
+export function fullDays(data: SeriesResponse): number {
+  const last = data.end < data.today ? data.end : addDays(data.today, -1);
+  return Math.max(daysBetween(data.start, last) + 1, 0);
 }
