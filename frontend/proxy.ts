@@ -10,6 +10,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Icons and the manifest stay public: the phone fetches them without the cookie when the app is installed.
 export const config = {
-  matcher: ["/((?!api|login|_next/static|_next/image|favicon.ico|icon.svg).*)"],
+  matcher: ["/((?!api|login|_next/static|_next/image|favicon.ico|icon.svg|icon-|apple-icon|manifest.webmanifest).*)"],
 };

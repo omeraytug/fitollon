@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Fitollon",
   description: "Your health and fitness data in one place, with an AI coach that already knows it.",
+  appleWebApp: { title: "Fitollon" }, // the name under the home-screen icon; the icon is app/apple-icon.png
 };
 
 export const viewport: Viewport = {
