@@ -1,24 +1,86 @@
-# fitollon
+<p align="center">
+  <img src="frontend/app/icon.svg" width="72" alt="">
+</p>
 
-Apollon's health & fitness ecosystem: one place for nutrition, weight, steps, Apple Watch metrics, training and
-photos, plus an AI coach that reads all of it on its own.
+<h1 align="center">Fitollon</h1>
 
-## What's in the app
+<p align="center">
+  Apollon's health &amp; fitness ecosystem: nutrition, weight, steps, Apple Watch metrics, training and photos in
+  one place, with an AI coach that reads all of it on its own.
+</p>
 
-- **Home**: today's weigh-in and weight trend; calories, macros and steps with their 7-day averages, with
-  calories and macros measured against your MacroFactor goals; your next and last training session; and a
-  shortcut to the coach. The banner shows your latest
-  Outdoors photo, or your latest Gym photo when there's none.
+<details open>
+<summary><h2>What it is</h2></summary>
+
+Fitollon collects what MacroFactor, the iPhone and the Apple Watch already record, adds a training log and a photo
+journal, and gives an AI coach access to all of it. It's a web app for one person; on a phone, Add to Home Screen
+installs it with its own icon, full screen.
+
+- **Home**: today at a glance: your weigh-in and weight trend, calories and macros against your MacroFactor goals,
+  and steps, with 7-day averages for macros and steps. It also shows your next and last training session and a
+  shortcut to the coach. The banner shows your latest Outdoors photo, or your latest Gym photo when there's none.
 - **Weight, Nutrition, Steps**: history charts over 30 days, 90 days, a year, all time or a custom range.
   Nutrition draws your goals as dashed lines.
 - **Training**: the current cycle of the active program in program order, earlier cycles, and sessions outside
   the plan.
 - **Programs**: several training programs. One is active, and the others are kept with their history.
-- **Coach**: a chat with the AI coach.
+- **Coach**: a chat with the AI coach. It looks up your data and training log by itself, can log sessions and
+  update your goals, and remembers what you tell it. Chats are named automatically and can be renamed.
 - **Photos**: private photos and videos tagged Meals, Outdoors, Progress or Gym.
 - **Profile**: nutrition goals, what the coach should know about you, its memories, and recent syncs.
 
-## How it fits together
+</details>
+
+<details open>
+<summary><h2>A look inside</h2></summary>
+
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/desktop-home-dark.webp">
+    <img src="docs/screenshots/desktop-home.webp" alt="Home on a computer: the photo banner above the weight, calories, macros and steps cards">
+  </picture>
+</p>
+
+<table>
+  <tr>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.webp">
+        <img src="docs/screenshots/home.webp" width="200" alt="Home: greeting over the latest gym photo, the next session, and today's weight and calories">
+      </picture>
+      <br><sub>Home</sub>
+    </td>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/steps-dark.webp">
+        <img src="docs/screenshots/steps.webp" width="200" alt="Steps: daily steps with a 7-day average line over 30 days">
+      </picture>
+      <br><sub>Steps</sub>
+    </td>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/training-dark.webp">
+        <img src="docs/screenshots/training.webp" width="200" alt="Training: the current cycle, with three of four sessions done and Lower B next">
+      </picture>
+      <br><sub>Training</sub>
+    </td>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/coach-dark.webp">
+        <img src="docs/screenshots/coach.webp" width="200" alt="Coach: a reply about a rest day with low steps, then today's weigh-in">
+      </picture>
+      <br><sub>Coach</sub>
+    </td>
+  </tr>
+</table>
+
+</details>
+
+<details open>
+<summary><h2>Setup</h2></summary>
+
+<details>
+<summary><h3>How it fits together</h3></summary>
 
 ```
 iPhone ── Health Auto Export ── POST /api/ingest/health-auto-export ──┐
@@ -42,10 +104,12 @@ browser ── frontend/  Next.js ───────────────�
   goes to the backend and everything else to the frontend.
 
 MacroFactor has no public API. Its daily nutrition and weight reach the app through Apple Health. Its goals,
-expenditure, trend weight and full history come from its in-app data export (see
-[MacroFactor export](#macrofactor-export)).
+expenditure, trend weight and full history come from its in-app data export (see **MacroFactor export** below).
 
-## Local development
+</details>
+
+<details>
+<summary><h3>Local development</h3></summary>
 
 Requires Docker, [uv](https://docs.astral.sh/uv/) and Node 22+.
 
@@ -75,7 +139,10 @@ curl -X POST localhost:8000/api/ingest/health-auto-export \
   -d '{"data":{"metrics":[{"name":"step_count","units":"count","data":[{"date":"2026-10-15 00:00:00 +0200","qty":8000}]}]}}'
 ```
 
-## Deploying to Vercel
+</details>
+
+<details>
+<summary><h3>Deploying to Vercel</h3></summary>
 
 1. Import the GitHub repo in Vercel and keep the root directory as `./`. Vercel builds it from `vercel.json`,
    and nothing runs on GitHub Actions. Before the first deploy, add the environment variables from
@@ -102,7 +169,10 @@ curl -X POST localhost:8000/api/ingest/health-auto-export \
 Vercel limits request bodies to 4.5 MB. Daily syncs are far below that, large imports run from your machine, and
 photos and videos go straight to Blob without passing through a function.
 
-## Apple Health sync (Health Auto Export)
+</details>
+
+<details>
+<summary><h3>Apple Health sync (Health Auto Export)</h3></summary>
 
 MacroFactor writes food and weigh-ins to Apple Health, and the iPhone and Watch write steps and the rest. The
 [Health Auto Export](https://apps.apple.com/app/id1115567069) app (Premium) sends it all to Fitollon:
@@ -120,7 +190,10 @@ MacroFactor writes food and weigh-ins to Apple Health, and the iPhone and Watch 
 
 After each sync Fitollon recalculates trend weight and expenditure, continuing from the last MacroFactor export.
 
-## MacroFactor export
+</details>
+
+<details>
+<summary><h3>MacroFactor export</h3></summary>
 
 MacroFactor's in-app export (More → Data Management → Data Export, an `.xlsx` file) has what Apple Health
 doesn't: expenditure, trend weight, micronutrients, the full history, and the calorie and macro goals of every
@@ -139,9 +212,16 @@ leaves daily values alone.
 MacroFactor doesn't send goal changes to Apple Health. When it adjusts your goals, enter them under
 **Profile → Nutrition goals** or tell the coach.
 
-## Switching the AI model
+</details>
+
+<details>
+<summary><h3>Switching the AI model</h3></summary>
 
 Set `MODEL_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`. `MODEL_ID` defaults to `claude-opus-5-5`. No code
 changes are needed, and existing conversations continue on the new model. `MODEL_PARAMS` (JSON) passes extra
 request parameters, such as `{"reasoning": {"effort": "medium"}}` for OpenAI reasoning models (OpenAI is called
 through its Responses API).
+
+</details>
+
+</details>
