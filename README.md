@@ -12,9 +12,12 @@
 <details open>
 <summary><h2>What it is</h2></summary>
 
-Fitollon collects what MacroFactor, the iPhone and the Apple Watch already record, adds a training log and a photo
-journal, and gives an AI coach access to all of it. It's a web app for one person; on a phone, Add to Home Screen
-installs it with its own icon, full screen.
+I used ChatGPT as my coach, but every question started with me typing in my steps, calories, weigh-ins and last
+workouts. Fitollon puts all of that in one place: it collects what MacroFactor, the iPhone and the Apple Watch
+already record, adds a training log and a photo journal, and gives an AI coach direct access to all of it. Asking
+the coach is now just the question.
+
+It's a web app for one person. On a phone, Add to Home Screen installs it with its own icon, full screen.
 
 - **Home**: today at a glance: your weigh-in and weight trend, calories and macros against your MacroFactor goals,
   and steps, with 7-day averages for macros and steps. It also shows your next and last training session and a
