@@ -139,7 +139,7 @@ export function SparkBars({
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
   const byDay = new Map(series.map((p) => [p.day, p.value]));
-  const max = Math.max(...series.map((p) => p.value), 1);
+  const max = Math.max(...days.map((day) => byDay.get(day) ?? 0), 1); // scaled to the days shown
   const band = width / days.length;
   const gap = band >= 8 ? 2 : 1;
   const barWidth = Math.max(band - gap, 1);

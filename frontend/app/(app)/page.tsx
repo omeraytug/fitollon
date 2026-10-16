@@ -267,13 +267,8 @@ function CaloriesCard({ data, i }: { data: Home; i: number }) {
   if (!calories) return null;
   const goal = data.targets?.calories ?? null;
   const eaten = calories.today ?? 0;
-  const balance = calories.avg7 !== null && expenditure ? calories.avg7 - expenditure.latest : null;
 
-  let caption = calories.today === null ? "Nothing logged yet today" : "Eaten today";
-  if (goal !== null && calories.today !== null) {
-    caption = eaten <= goal ? `${formatNumber(goal - eaten, 0)} kcal left` : `${formatNumber(eaten - goal, 0)} kcal over`;
-  }
-
+  // Today only: the averages and history live on the Nutrition page.
   return (
     <Card href="/nutrition" icon={Flame} title="Calories" i={i}>
       <p className="mt-2 text-3xl font-semibold tracking-tight">
@@ -282,30 +277,18 @@ function CaloriesCard({ data, i }: { data: Home; i: number }) {
           {goal !== null ? `/ ${formatNumber(goal, 0)} kcal` : "kcal"}
         </span>
       </p>
+      <p className="text-xs text-muted">{calories.today === null ? "Nothing logged yet today" : "Eaten today"}</p>
+      {expenditure && (
+        <p className="mt-2 text-sm text-ink-2">Burning ~{formatValue(expenditure.latest, expenditure.unit)} a day</p>
+      )}
       {goal !== null && (
-        <div className="mt-2">
+        <div className="mt-auto pt-3">
           <GoalBar value={eaten} goal={goal} color="var(--series-1)" i={i} />
+          <p className="mt-1.5 text-xs text-muted">
+            {eaten <= goal ? `${formatNumber(goal - eaten, 0)} kcal left` : `${formatNumber(eaten - goal, 0)} kcal over`}
+          </p>
         </div>
       )}
-      <p className="mt-1.5 text-xs text-muted">{caption}</p>
-      <p className="mt-2 text-sm text-ink-2">
-        {calories.avg7 !== null && `7-day avg ${formatValue(calories.avg7, calories.unit)}`}
-        {expenditure && ` · burning ~${formatValue(expenditure.latest, expenditure.unit)}`}
-      </p>
-      {balance !== null && (
-        <p className="text-sm text-ink-2">
-          {formatValue(Math.abs(balance), "kcal")} a day {balance < 0 ? "under" : "over"} expenditure this week
-        </p>
-      )}
-      <div className="mt-auto pt-3">
-        <SparkBars
-          series={calories.series}
-          days={lastDays(data.today, 14)}
-          unit={calories.unit}
-          today={data.today}
-          label="Calories, last 14 days"
-        />
-      </div>
     </Card>
   );
 }
@@ -358,10 +341,10 @@ function StepsCard({ data, i }: { data: Home; i: number }) {
       <div className="mt-auto pt-3">
         <SparkBars
           series={steps.series}
-          days={lastDays(data.today, 14)}
+          days={lastDays(data.today, 7)}
           unit={steps.unit}
           today={data.today}
-          label="Steps, last 14 days"
+          label="Steps, last 7 days"
         />
       </div>
     </Card>
