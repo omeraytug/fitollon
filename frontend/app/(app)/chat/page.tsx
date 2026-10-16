@@ -1,33 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MessagesSquare, Send, SquarePen } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { ConversationList, HistorySheet, type ConversationSummary } from "@/components/chat/conversations";
+import { Intro, Reply, UserBubble, type Message } from "@/components/chat/messages";
 import { api, streamChat } from "@/lib/api";
-
-type Message = { role: "user" | "assistant"; text: string; tools: string[] };
-type ConversationSummary = { id: string; title: string; updated_at: string };
-
-const TOOL_LABELS: Record<string, string> = {
-  list_available_metrics: "Checked which data exists",
-  get_daily_metrics: "Read daily metrics",
-  summarize_metric: "Summarized a trend",
-  get_workouts: "Read Apple Watch workouts",
-  get_training_sessions: "Read training log",
-  get_exercise_history: "Read exercise history",
-  log_training_session: "Logged a training session",
-  remember: "Saved a memory",
-  forget: "Deleted a memory",
-  run_sql: "Ran a custom query",
-};
-
-const SUGGESTIONS = [
-  "How did my last 7 days look?",
-  "How is my weight trending this month?",
-  "Am I hitting my protein consistently?",
-  "Log today's session: bench 3x8 at 80 kg, rows 3x10 at 60 kg",
-];
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -36,7 +14,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Follow the reply as it streams, unless you've scrolled up to read something.
+  const following = useRef(true);
 
   const loadConversations = useCallback(() => {
     api<ConversationSummary[]>("/api/conversations").then(setConversations, () => {});
@@ -57,11 +37,21 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on arrival
   }, []);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    const onScroll = () => {
+      const fromBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+      following.current = fromBottom < 160;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  useLayoutEffect(() => {
+    if (following.current) window.scrollTo({ top: document.documentElement.scrollHeight });
   }, [messages]);
 
   async function openConversation(id: string | null) {
+    if (streaming) return;
     setError("");
+    following.current = true;
     setConversationId(id);
     if (!id) {
       setMessages([]);
@@ -88,6 +78,7 @@ export default function ChatPage() {
     setInput("");
     setError("");
     setStreaming(true);
+    following.current = true;
     setMessages((current) => [
       ...current,
       { role: "user", text: message, tools: [] },
@@ -108,130 +99,98 @@ export default function ChatPage() {
     }
   }
 
+  const title = conversations.find((c) => c.id === conversationId)?.title;
+  const iconButton = "press grid size-10 place-items-center rounded-full border border-hairline bg-surface text-ink-2 hover:text-ink";
+
   return (
-    <div className="flex flex-1 gap-6">
-      <aside className="hidden w-56 shrink-0 flex-col gap-1 md:flex">
-        <button
-          onClick={() => openConversation(null)}
-          className="mb-2 rounded-md border border-hairline bg-surface px-3 py-2 text-left text-sm font-medium hover:border-accent"
-        >
-          + New chat
-        </button>
-        {conversations.map((c) => (
-          <div key={c.id} className="group flex items-center">
-            <button
-              onClick={() => openConversation(c.id)}
-              className={`flex-1 truncate rounded-md px-3 py-1.5 text-left text-sm ${
-                c.id === conversationId ? "bg-accent-wash text-ink" : "text-ink-2 hover:text-ink"
-              }`}
-              title={c.title}
-            >
-              {c.title}
-            </button>
-            <button
-              onClick={() => deleteConversation(c.id)}
-              className="px-2 text-muted opacity-0 group-hover:opacity-100 hover:text-critical"
-              aria-label={`Delete ${c.title}`}
-            >
-              ×
-            </button>
-          </div>
-        ))}
+    <div className="flex flex-1 gap-8">
+      <aside className="hidden w-60 shrink-0 md:block">
+        <div className="rise sticky top-20 max-h-[calc(100dvh-7rem)] overflow-y-auto pr-1">
+          <ConversationList
+            conversations={conversations}
+            activeId={conversationId}
+            onOpen={openConversation}
+            onDelete={deleteConversation}
+          />
+        </div>
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col">
-        <div className="mb-3 flex gap-2 md:hidden">
-          <select
-            value={conversationId ?? ""}
-            onChange={(e) => openConversation(e.target.value || null)}
-            className="min-w-0 flex-1 rounded-md border border-hairline bg-surface px-2 py-2 text-sm"
-          >
-            <option value="">New chat</option>
-            {conversations.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
+        <div className="rise flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-semibold tracking-tight">Coach</h1>
+            {title && <p className="mt-1 truncate text-sm text-muted">{title}</p>}
+          </div>
+          <div className="flex shrink-0 gap-2 md:hidden">
+            <button onClick={() => setHistoryOpen(true)} className={iconButton} aria-label="Chats">
+              <MessagesSquare size={18} />
+            </button>
+            {messages.length > 0 && (
+              <button onClick={() => openConversation(null)} disabled={streaming} className={iconButton} aria-label="New chat">
+                <SquarePen size={18} />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-1 flex-col gap-4 pb-4">
-          {messages.length === 0 && (
-            <div className="mt-8">
-              <h1 className="text-2xl font-semibold tracking-tight">Ask your coach</h1>
-              <p className="mt-1 text-sm text-ink-2">It reads your synced data and training log on its own.</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => send(s)}
-                    className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-left text-sm text-ink-2 hover:border-accent hover:text-ink"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="flex flex-1 flex-col gap-6 py-6">
+          {messages.length === 0 ? (
+            <Intro onAsk={send} />
+          ) : (
+            messages.map((m, i) => {
+              const working = streaming && i === messages.length - 1;
+              if (m.role === "user") return <UserBubble key={i} text={m.text} />;
+              if (!m.text && m.tools.length === 0 && !working) return null;
+              return <Reply key={i} message={m} working={working} />;
+            })
           )}
-          {messages.map((m, i) =>
-            m.role === "user" ? (
-              <div key={i} className="max-w-[85%] self-end rounded-2xl bg-bubble px-4 py-2 whitespace-pre-wrap">
-                {m.text}
-              </div>
-            ) : (
-              <div key={i} className="max-w-full self-start">
-                {m.tools.length > 0 && (
-                  <div className="mb-1 flex flex-wrap gap-1">
-                    {[...new Set(m.tools)].map((tool) => (
-                      <span key={tool} className="rounded-full bg-accent-wash px-2 py-0.5 text-xs text-ink-2">
-                        {TOOL_LABELS[tool] ?? tool}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {m.text ? (
-                  <div className="prose-chat leading-relaxed">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
-                  </div>
-                ) : (
-                  streaming && i === messages.length - 1 && <p className="text-sm text-muted">Thinking…</p>
-                )}
-              </div>
-            ),
-          )}
-          {error && <p className="text-sm text-critical">{error}</p>}
-          <div ref={bottomRef} />
+          {error && <p className="rise text-sm text-critical">{error}</p>}
         </div>
 
+        {/* Sticks above the tab bar; the negative margin reaches into main's bottom padding so it doesn't jump at the end. */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
           }}
-          className="sticky bottom-(--tabbar-h) flex items-end gap-2 bg-page pt-2 pb-3"
+          className="sticky bottom-(--tabbar-h) -mx-4 -mb-6 bg-linear-to-t from-page from-70% to-transparent px-4 pt-4 pb-6"
         >
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send(input);
-              }
-            }}
-            rows={Math.min(6, Math.max(1, input.split("\n").length))}
-            placeholder="Ask your coach…"
-            className="min-w-0 flex-1 resize-none rounded-xl border border-hairline bg-surface px-4 py-3 outline-none focus:border-accent"
-          />
-          <button
-            type="submit"
-            disabled={streaming || !input.trim()}
-            className="rounded-xl bg-accent px-4 py-3 font-medium text-accent-ink disabled:opacity-50"
-          >
-            Send
-          </button>
+          <div className="flex items-end gap-2 rounded-2xl border border-hairline bg-surface p-2 pl-4 shadow-sm focus-within:border-accent">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  send(input);
+                }
+              }}
+              rows={Math.min(6, Math.max(1, input.split("\n").length))}
+              enterKeyHint="send"
+              placeholder="Ask your coach…"
+              className="max-h-40 min-w-0 flex-1 resize-none bg-transparent py-2 text-base outline-none field-sizing-content placeholder:text-muted"
+            />
+            <button
+              type="submit"
+              disabled={streaming || !input.trim()}
+              aria-label="Send"
+              className="press grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-ink disabled:opacity-40"
+            >
+              <Send size={17} />
+            </button>
+          </div>
         </form>
       </section>
+
+      {historyOpen && (
+        <HistorySheet
+          conversations={conversations}
+          activeId={conversationId}
+          onOpen={openConversation}
+          onDelete={deleteConversation}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
     </div>
   );
 }
