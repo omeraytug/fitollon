@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from fitollon.agent.runner import stream_chat
@@ -66,6 +66,26 @@ def get_conversation(conversation_id: str, session: Session = DbSession) -> dict
     if conversation is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found")
     return {"id": conversation.id, "title": conversation.title, "messages": _display_messages(conversation.messages)}
+
+
+class RenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+@router.patch("/conversations/{conversation_id}")
+def rename_conversation(conversation_id: str, body: RenameRequest, session: Session = DbSession) -> dict:
+    title = " ".join(body.title.split())
+    if not title:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The name can't be empty")
+    # Setting updated_at to itself keeps the chat where it is in the list; renaming isn't new activity.
+    renamed = session.execute(
+        update(Conversation)
+        .where(Conversation.id == conversation_id)
+        .values(title=title, updated_at=Conversation.updated_at)
+    ).rowcount
+    if not renamed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found")
+    return {"id": conversation_id, "title": title}
 
 
 @router.delete("/conversations/{conversation_id}")

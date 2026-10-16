@@ -4,9 +4,10 @@ uv run python -m fitollon.cli models        # list models your API key can use (
 uv run python -m fitollon.cli secret        # generate a random value for SESSION_SECRET / INGEST_TOKEN
 uv run python -m fitollon.cli import-macrofactor ../imports/MacroFactor-....xlsx
 uv run python -m fitollon.cli import-macrofactor --goals-only ../imports/MacroFactor-....xlsx
+uv run python -m fitollon.cli retitle-chats  # name chats from before automatic naming (uses the AI model)
 
-Imports write to DATABASE_URL: the local database by default, or production when you prefix the command
-with DATABASE_URL='<Neon unpooled URL>'.
+Imports and retitle-chats write to DATABASE_URL: the local database by default, or production when you prefix
+the command with DATABASE_URL='<Neon unpooled URL>'.
 """
 
 import argparse
@@ -70,6 +71,37 @@ def import_macrofactor(path: Path, goals_only: bool = False) -> None:
     print(f"Imported {count} metric-days from {len(by_metric)} metrics, and {len(goals)} nutrition goal rows.")
 
 
+def retitle_chats() -> None:
+    """Names chats from before automatic naming; chats renamed by hand keep their name."""
+    import asyncio
+
+    from sqlalchemy import select, update
+
+    from fitollon.agent.titles import fallback_title, first_user_text, generate_title
+    from fitollon.db import session_scope
+    from fitollon.models import Conversation
+
+    with session_scope() as session:
+        rows = session.execute(select(Conversation.id, Conversation.title, Conversation.messages)).all()
+    pending = [
+        (row.id, row.title, text)
+        for row in rows
+        if (text := first_user_text(row.messages)) and row.title == fallback_title(text)
+    ]
+    print(f"{len(pending)} of {len(rows)} chats still use their first words as the name.")
+    for conversation_id, old, text in pending:
+        title = asyncio.run(generate_title(text))
+        if title == old:
+            continue
+        with session_scope() as session:
+            session.execute(
+                update(Conversation)
+                .where(Conversation.id == conversation_id)
+                .values(title=title, updated_at=Conversation.updated_at)  # keep the chat's place in the list
+            )
+        print(f"  {old[:40]!r} → {title!r}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="fitollon")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -78,6 +110,7 @@ def main(argv: list[str] | None = None) -> None:
     import_mf = sub.add_parser("import-macrofactor", help="import a MacroFactor .xlsx data export")
     import_mf.add_argument("path", type=Path)
     import_mf.add_argument("--goals-only", action="store_true", help="import only the nutrition goal history")
+    sub.add_parser("retitle-chats", help="name older chats with a short summary, like new chats get")
     args = parser.parse_args(argv)
 
     if args.command == "models":
@@ -86,6 +119,8 @@ def main(argv: list[str] | None = None) -> None:
         print(secrets.token_urlsafe(32))
     elif args.command == "import-macrofactor":
         import_macrofactor(args.path, args.goals_only)
+    elif args.command == "retitle-chats":
+        retitle_chats()
 
 
 if __name__ == "__main__":

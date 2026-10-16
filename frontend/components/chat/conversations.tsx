@@ -1,7 +1,7 @@
 "use client";
 
-import { SquarePen, Trash2, X } from "lucide-react";
-import { useEffect } from "react";
+import { Pencil, SquarePen, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 export type ConversationSummary = { id: string; title: string; updated_at: string };
@@ -32,17 +32,45 @@ function grouped(conversations: ConversationSummary[]): [string, ConversationSum
   return [...groups];
 }
 
+/** The name as a text field: Enter or leaving the field saves, Escape cancels. */
+function RenameField({ title, onSave, onCancel }: { title: string; onSave: (title: string) => void; onCancel: () => void }) {
+  const [value, setValue] = useState(title);
+  const save = () => (value.trim() && value.trim() !== title ? onSave(value.trim()) : onCancel());
+  return (
+    <input
+      autoFocus
+      value={value}
+      maxLength={200}
+      aria-label="Chat name"
+      onChange={(e) => setValue(e.target.value)}
+      onFocus={(e) => e.target.select()}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") save();
+        if (e.key === "Escape") onCancel();
+      }}
+      className="min-w-0 flex-1 rounded-lg border border-accent bg-page px-3 py-1.5 text-base outline-none sm:text-sm"
+    />
+  );
+}
+
 export function ConversationList({
   conversations,
   activeId,
   onOpen,
+  onRename,
   onDelete,
 }: {
   conversations: ConversationSummary[];
   activeId: string | null;
   onOpen: (id: string | null) => void;
+  onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  // On desktop, rename and delete appear on hover or keyboard focus, so names get the full width otherwise.
+  const action =
+    "grid size-9 shrink-0 place-items-center rounded-full text-muted md:hidden md:group-focus-within:grid md:group-hover:grid";
   return (
     <div className="flex flex-col gap-4">
       <button
@@ -58,22 +86,34 @@ export function ConversationList({
           <ul>
             {items.map((c) => (
               <li key={c.id} className="group flex items-center">
-                <button
-                  onClick={() => onOpen(c.id)}
-                  title={c.title}
-                  className={`min-w-0 flex-1 truncate rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    c.id === activeId ? "bg-accent-wash font-medium text-ink" : "text-ink-2 hover:bg-accent-wash hover:text-ink"
-                  }`}
-                >
-                  {c.title}
-                </button>
-                <button
-                  onClick={() => onDelete(c.id)}
-                  aria-label={`Delete ${c.title}`}
-                  className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:text-critical md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
-                >
-                  <Trash2 size={15} />
-                </button>
+                {editing === c.id ? (
+                  <RenameField
+                    title={c.title}
+                    onSave={(title) => {
+                      setEditing(null);
+                      onRename(c.id, title);
+                    }}
+                    onCancel={() => setEditing(null)}
+                  />
+                ) : (
+                  <>
+                    <button
+                      onClick={() => onOpen(c.id)}
+                      title={c.title}
+                      className={`min-w-0 flex-1 truncate rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                        c.id === activeId ? "bg-accent-wash font-medium text-ink" : "text-ink-2 hover:bg-accent-wash hover:text-ink"
+                      }`}
+                    >
+                      {c.title}
+                    </button>
+                    <button onClick={() => setEditing(c.id)} aria-label={`Rename ${c.title}`} className={`${action} hover:text-ink`}>
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => onDelete(c.id)} aria-label={`Delete ${c.title}`} className={`${action} hover:text-critical`}>
+                      <Trash2 size={15} />
+                    </button>
+                  </>
+                )}
               </li>
             ))}
           </ul>

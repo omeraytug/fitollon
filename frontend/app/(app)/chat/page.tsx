@@ -61,6 +61,12 @@ export default function ChatPage() {
     setMessages(conversation.messages);
   }
 
+  async function renameConversation(id: string, title: string) {
+    setConversations((all) => all.map((c) => (c.id === id ? { ...c, title } : c)));
+    await api(`/api/conversations/${id}`, { method: "PATCH", body: JSON.stringify({ title }) }).catch(() => {});
+    loadConversations();
+  }
+
   async function deleteConversation(id: string) {
     if (!confirm("Delete this conversation?")) return;
     await api(`/api/conversations/${id}`, { method: "DELETE" });
@@ -104,12 +110,13 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-1 gap-8">
-      <aside className="hidden w-60 shrink-0 md:block">
+      <aside className="hidden w-64 shrink-0 md:block">
         <div className="rise sticky top-20 max-h-[calc(100dvh-7rem)] overflow-y-auto pr-1">
           <ConversationList
             conversations={conversations}
             activeId={conversationId}
             onOpen={openConversation}
+            onRename={renameConversation}
             onDelete={deleteConversation}
           />
         </div>
@@ -187,6 +194,7 @@ export default function ChatPage() {
           conversations={conversations}
           activeId={conversationId}
           onOpen={openConversation}
+          onRename={renameConversation}
           onDelete={deleteConversation}
           onClose={() => setHistoryOpen(false)}
         />
