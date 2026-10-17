@@ -39,7 +39,8 @@ function Content({ data }: { data: SeriesResponse }) {
   const last = trend[trend.length - 1];
   const change = first && last ? last.value - first.value : null;
   const span = first && last ? daysBetween(first.day, last.day) : 0;
-  const rate = change !== null && span >= 7 ? (change / span) * 7 : null;
+  // A week of days spans 6 days from first to last, so 7D gets a rate too.
+  const rate = change !== null && span >= 6 ? (change / span) * 7 : null;
 
   return (
     <>

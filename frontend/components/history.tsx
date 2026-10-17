@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { addDays, daysBetween, type Point } from "@/lib/format";
 
 export const RANGES = [
+  { days: 7, label: "7D" },
   { days: 30, label: "30D" },
   { days: 90, label: "90D" },
   { days: 365, label: "1Y" },
