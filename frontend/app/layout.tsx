@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import { ThemeSync } from "@/components/theme-switch";
+import { THEME_COLORS, THEME_SCRIPT } from "@/lib/theme";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -23,15 +26,22 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover", // lets the tab bar sit in the iPhone's home-indicator area, padded by safe-area insets
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fcfcfb" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1a19" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
   ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+    // suppressHydrationWarning: the script below may set data-theme on <html> before React hydrates.
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="min-h-full flex flex-col font-sans">
+        {children}
+        <ThemeSync />
+      </body>
     </html>
   );
 }

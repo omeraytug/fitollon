@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { GoalsCard } from "@/components/goals-card";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { api } from "@/lib/api";
 
 type Profile = { about: string; goals: string; memories: { id: number; content: string }[] };
@@ -149,6 +150,13 @@ export default function ProfilePage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className={card} style={{ "--i": 5 } as React.CSSProperties}>
+        <h2 className="font-medium">Appearance</h2>
+        <div className="mt-3">
+          <ThemeSwitch />
+        </div>
       </section>
 
       <button onClick={logout} className="press flex items-center gap-2 self-start text-sm text-muted hover:text-ink">

@@ -34,8 +34,10 @@
   }
 }
 
+/* Dark follows the device unless Profile picked Light, and always applies when Profile picked Dark
+   (lib/theme.ts sets data-theme). CSS can't share one block between the two, so keep them identical. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --page: #0d0d0d;
     --surface: #1a1a19;
@@ -58,6 +60,30 @@
     --hero-from: #16263b;
     --hero-to: #2a2119;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --hairline: rgba(255, 255, 255, 0.1);
+  --accent: #3987e5;
+  --accent-wash: rgba(57, 135, 229, 0.12);
+  --accent-ink: #ffffff;
+  --bubble: #1c2a3b;
+  --critical: #e66767;
+  --good: #0ca30c;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --hero-from: #16263b;
+  --hero-to: #2a2119;
 }
 
 @theme inline {
