@@ -148,6 +148,31 @@ async function prepareVideo(file: File): Promise<Prepared> {
   }
 }
 
+/** A photo for the coach: at most 1600 px on its longest side, as JPEG (a few hundred KB). */
+export async function chatPhoto(file: File): Promise<Blob> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file); // applies the EXIF rotation
+  } catch {
+    throw new Error(`${file.name || "That file"}: this browser can't read that image format`);
+  }
+  try {
+    return await toJpeg(bitmap, bitmap.width, bitmap.height, 1600, 0.85);
+  } finally {
+    bitmap.close();
+  }
+}
+
+/** The file's bytes as base64, without the data: prefix. */
+export function toBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read the photo"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export function prepare(file: File): Promise<Prepared> {
   if (file.type.startsWith("video/")) return prepareVideo(file);
   return preparePhoto(file);

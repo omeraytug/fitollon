@@ -16,14 +16,17 @@ import {
   TrendingUp,
   UtensilsCrossed,
   Watch,
+  X,
   type LucideIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Logo } from "@/components/logo";
 
-export type Message = { role: "user" | "assistant"; text: string; tools: string[] };
+export type Message = { role: "user" | "assistant"; text: string; tools: string[]; images?: string[] };
 
 const TOOLS: Record<string, { label: string; icon: LucideIcon }> = {
   list_available_metrics: { label: "Checked which data exists", icon: Database },
@@ -78,9 +81,51 @@ export function Intro({ onAsk }: { onAsk: (text: string) => void }) {
   );
 }
 
-export function UserBubble({ text }: { text: string }) {
+/** A photo full screen; a tap anywhere or Escape closes it. */
+function PhotoView({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  // Portaled to <body>: an animated ancestor (transform) would otherwise become the overlay's frame.
+  return createPortal(
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- a chat photo served by the backend */}
+      <img src={src} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 grid size-10 place-items-center rounded-full bg-white/10 text-white"
+      >
+        <X size={20} />
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
+export function UserBubble({ text, images = [] }: { text: string; images?: string[] }) {
+  const [open, setOpen] = useState<string | null>(null);
   return (
-    <div className="rise max-w-[85%] self-end rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 whitespace-pre-wrap">{text}</div>
+    <div className="rise flex max-w-[85%] flex-col items-end gap-1.5 self-end">
+      {images.length > 0 && (
+        <div className={`grid gap-1.5 ${images.length > 1 ? "grid-cols-2" : ""}`}>
+          {images.map((src) => (
+            <button key={src} onClick={() => setOpen(src)} aria-label="Open photo" className="press overflow-hidden rounded-2xl">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a chat photo served by the backend */}
+              <img
+                src={src}
+                alt=""
+                className={images.length > 1 ? "size-32 object-cover sm:size-40" : "max-h-80 max-w-64 object-cover sm:max-w-72"}
+              />
+            </button>
+          ))}
+        </div>
+      )}
+      {text && <div className="rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 whitespace-pre-wrap">{text}</div>}
+      {open && <PhotoView src={open} onClose={() => setOpen(null)} />}
+    </div>
   );
 }
 

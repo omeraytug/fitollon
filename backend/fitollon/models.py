@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -228,12 +229,25 @@ class Conversation(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
-    # The Strands agent's message history, stored as-is so a conversation can be resumed.
+    # The Strands agent's message history, stored as-is so a conversation can be resumed. Attached photos are
+    # kept in chat_images and referenced from their image blocks as {"source": {"chat_image": id}}.
     messages: Mapped[list[dict[str, Any]]] = mapped_column(JsonType, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), index=True
     )
+
+
+class ChatImage(Base):
+    """A photo attached to a chat message, resized on the phone; deleted with its conversation."""
+
+    __tablename__ = "chat_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+    format: Mapped[str] = mapped_column(String(8))  # jpeg, png, webp or gif
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class IngestEvent(Base):

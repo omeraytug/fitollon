@@ -24,19 +24,25 @@ export type ChatEvent =
   | { type: "done" }
   | { type: "error"; message: string };
 
-/** POST a chat message and yield the newline-delimited JSON events as they stream in. */
-export async function* streamChat(message: string, conversationId: string | null): AsyncGenerator<ChatEvent> {
+/** POST a chat message (with photos as base64 JPEG) and yield the newline-delimited JSON events as they stream in. */
+export async function* streamChat(
+  message: string,
+  conversationId: string | null,
+  images: string[] = [],
+): AsyncGenerator<ChatEvent> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message, conversation_id: conversationId }),
+    body: JSON.stringify({ message, conversation_id: conversationId, images }),
   });
   if (response.status === 401) {
     window.location.replace("/login");
     return;
   }
   if (!response.ok || !response.body) {
-    yield { type: "error", message: `Request failed (${response.status})` };
+    const body = await response.json().catch(() => null);
+    const detail = typeof body?.detail === "string" ? body.detail : null;
+    yield { type: "error", message: detail ?? `Request failed (${response.status})` };
     return;
   }
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
