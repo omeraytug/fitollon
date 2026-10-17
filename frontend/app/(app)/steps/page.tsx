@@ -11,7 +11,7 @@ import {
   type SeriesResponse,
 } from "@/components/history";
 import { TimeChart } from "@/components/time-chart";
-import { addDays, formatDay, formatNumber, mean, type Point } from "@/lib/format";
+import { formatNumber, mean, shortDay } from "@/lib/format";
 
 export default function StepsPage() {
   const [range, setRange] = useRange("steps", 30);
@@ -26,47 +26,30 @@ export default function StepsPage() {
   );
 }
 
-/** Average of the 7 days ending on each full day (days without data are skipped, not counted as zero). */
-function rollingWeek(points: Point[], today: string): Point[] {
-  const byDay = new Map(points.map((p) => [p.day, p.value]));
-  return points
-    .filter((p) => p.day < today)
-    .map((p) => {
-      const window = Array.from({ length: 7 }, (_, i) => byDay.get(addDays(p.day, -i))).filter(
-        (v): v is number => v !== undefined,
-      );
-      return { day: p.day, value: mean(window)! };
-    });
+/** "Oct 12 – Oct 16"; years appear when the range isn't all in the current year. */
+function span(first: string, last: string, today: string): string {
+  const year = first.slice(0, 4) !== today.slice(0, 4) || last.slice(0, 4) !== today.slice(0, 4);
+  return first === last ? shortDay(first, year) : `${shortDay(first, year)} – ${shortDay(last, year)}`;
 }
 
 function Content({ data }: { data: SeriesResponse }) {
   const points = data.series.steps?.points ?? [];
-  const full = points.filter((p) => p.day < data.today);
-  const best = full.reduce<Point | null>((top, p) => (!top || p.value > top.value ? p : top), null);
-  const avg = mean(full.map((p) => p.value));
+  // Both count every day in the range, today's steps so far included.
+  const avg = mean(points.map((p) => p.value));
+  const total = points.reduce((sum, p) => sum + p.value, 0);
+  const covers =
+    data.end >= data.today
+      ? `${shortDay(data.start, data.start.slice(0, 4) !== data.today.slice(0, 4))} – today`
+      : span(data.start, data.end, data.today);
   const weekly = isWeekly(data);
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat i={1} label="Daily average" value={avg !== null ? formatNumber(avg, 0) : "—"} detail="full days" />
-        <Stat
-          i={2}
-          label="Best day"
-          value={best ? formatNumber(best.value, 0) : "—"}
-          detail={best ? formatDay(best.day, data.today) : undefined}
-        />
-        <Stat
-          i={3}
-          label="Total"
-          value={formatNumber(
-            points.reduce((sum, p) => sum + p.value, 0),
-            0,
-          )}
-          detail="in this range"
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <Stat i={1} label="Daily average" value={avg !== null ? formatNumber(avg, 0) : "—"} detail={covers} />
+        <Stat i={2} label="Total" value={formatNumber(total, 0)} detail={covers} />
       </div>
-      <ChartCard i={4}>
+      <ChartCard i={3}>
         <TimeChart
           label="Steps per day"
           start={data.start}
@@ -78,17 +61,20 @@ function Content({ data }: { data: SeriesResponse }) {
           partialDay={data.today}
           series={[
             { key: "steps", label: weekly ? "Steps (weekly average)" : "Steps", color: "var(--series-1)", kind: "bars", points },
-            ...(weekly
-              ? []
-              : [
+            // The Daily average above as a line; hovering a bar shows only its steps.
+            ...(avg !== null && points.length > 1
+              ? [
                   {
                     key: "avg",
-                    label: "7-day average",
+                    label: "Daily average",
                     color: "var(--ink-2)",
                     kind: "line" as const,
-                    points: rollingWeek(points, data.today),
+                    dashed: true,
+                    drawnOnly: true,
+                    points: points.map((p) => ({ day: p.day, value: avg })),
                   },
-                ]),
+                ]
+              : []),
           ]}
         />
       </ChartCard>

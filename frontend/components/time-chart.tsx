@@ -12,6 +12,8 @@ export type ChartSeries = {
   points: Point[];
   /** Dashed, for reference lines such as goals. */
   dashed?: boolean;
+  /** Drawn on the chart but left out of the hover readout and the table, e.g. an average shown elsewhere. */
+  drawnOnly?: boolean;
 };
 
 type Bucket = { day: string; values: Record<string, number | undefined> };
@@ -129,6 +131,7 @@ export function TimeChart({
   }, []);
 
   const data = buckets(series, start, end, weekly);
+  const listed = series.filter((s) => !s.drawnOnly);
   const values = data.flatMap((b) => Object.values(b.values).filter((v): v is number => v !== undefined));
   const fmt = (v: number) => formatNumber(v, digits);
   if (values.length === 0) return <p className="py-10 text-center text-sm text-muted">No data in this range.</p>;
@@ -270,7 +273,7 @@ export function TimeChart({
                       className="draw"
                     />
                   )}
-                  {hv !== undefined && (
+                  {hv !== undefined && !s.drawnOnly && (
                     <circle cx={cx(hover!)} cy={cy(hv)} r={4.5} fill={s.color} stroke="var(--surface)" strokeWidth={2} />
                   )}
                 </g>
@@ -285,7 +288,7 @@ export function TimeChart({
             style={cx(hover!) > width * 0.55 ? { right: width - cx(hover!) + 12 } : { left: cx(hover!) + 12 }}
           >
             <p className="font-medium text-ink">{bucketLabel(hovered.day)}</p>
-            {series.map((s) => (
+            {listed.map((s) => (
               <p key={s.key} className="mt-1 flex items-center gap-2 whitespace-nowrap text-ink-2">
                 <Swatch s={s} />
                 {s.label}
@@ -308,7 +311,7 @@ export function TimeChart({
             <thead className="sticky top-0 bg-surface text-xs text-muted">
               <tr>
                 <th className="px-3 py-1.5 text-left font-normal">{weekly ? "Week of" : "Day"}</th>
-                {series.map((s) => (
+                {listed.map((s) => (
                   <th key={s.key} className="px-3 py-1.5 text-right font-normal">
                     {s.label}
                   </th>
@@ -317,10 +320,10 @@ export function TimeChart({
             </thead>
             <tbody>
               {[...data].reverse().map((b) =>
-                series.some((s) => b.values[s.key] !== undefined) ? (
+                listed.some((s) => b.values[s.key] !== undefined) ? (
                   <tr key={b.day} className="border-t border-grid">
                     <td className="px-3 py-1.5">{shortDay(b.day, longSpan)}</td>
-                    {series.map((s) => (
+                    {listed.map((s) => (
                       <td key={s.key} className="px-3 py-1.5 text-right">
                         {b.values[s.key] === undefined ? "—" : fmt(b.values[s.key]!)}
                       </td>
