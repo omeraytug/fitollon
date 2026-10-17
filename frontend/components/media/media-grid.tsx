@@ -11,7 +11,17 @@ function monthLabel(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
-export function Thumb({ src, alt, className = "" }: { src: string | undefined; alt: string; className?: string }) {
+export function Thumb({
+  src,
+  alt,
+  className = "",
+  imgClassName = "",
+}: {
+  src: string | undefined;
+  alt: string;
+  className?: string;
+  imgClassName?: string;
+}) {
   const [loaded, setLoaded] = useState(false);
   return (
     <span className={`block overflow-hidden bg-grid ${className}`}>
@@ -23,7 +33,7 @@ export function Thumb({ src, alt, className = "" }: { src: string | undefined; a
           loading="lazy"
           decoding="async"
           onLoad={() => setLoaded(true)}
-          className={`size-full object-cover transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+          className={`size-full object-cover transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"} ${imgClassName}`}
         />
       )}
     </span>

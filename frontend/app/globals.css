@@ -131,6 +131,14 @@ body {
     background-position: -200% 0;
   }
 }
+@keyframes drift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
 @keyframes typing {
   0%,
   60%,
@@ -186,6 +194,10 @@ body {
 .typing > span {
   animation: typing 1.2s ease-in-out infinite;
 }
+/* A slow zoom on featured photos. */
+.drift {
+  animation: drift 24s ease-in-out infinite alternate;
+}
 .typing > span:nth-child(2) {
   animation-delay: 150ms;
 }
@@ -206,7 +218,8 @@ body {
   .pop,
   .pulse,
   .skeleton,
-  .typing > span {
+  .typing > span,
+  .drift {
     animation: none;
   }
   .press:active {
