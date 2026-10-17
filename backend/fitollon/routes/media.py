@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/media", dependencies=[Depends(require_user)])
 
 Tag = Literal["meals", "outdoors", "progress", "gym"]
 TAGS: tuple[Tag, ...] = ("meals", "outdoors", "progress", "gym")
-PREVIEWS = 3  # latest items shown on each tag's card
+PREVIEWS = 4  # latest items shown on each album cover (a 2×2 mosaic)
 
 # Files are uploaded by the frontend into Blob under this prefix; only those pathnames are accepted.
 PATH_PREFIX = "media/"
@@ -70,7 +70,7 @@ def list_media(tag: Tag | None = None, limit: int = Query(200, ge=1, le=500), se
 
 @router.get("/summary")
 def summary(session: Session = DbSession) -> dict:
-    """Each tag's count and latest items (for its preview card), plus the storage used."""
+    """Each tag's count and latest items (for its album cover), plus the storage used."""
     counts = dict(session.execute(select(MediaItem.tag, func.count()).group_by(MediaItem.tag)).all())
     tags = []
     for tag in TAGS:
