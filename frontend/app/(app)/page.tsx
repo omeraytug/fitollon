@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { CountUp } from "@/components/count-up";
+import { Habits } from "@/components/habits";
 import { useSignedUrls } from "@/components/media/use-signed-urls";
 import { SparkBars, Sparkline } from "@/components/sparkline";
 import { api } from "@/lib/api";
@@ -420,19 +421,27 @@ export default function HomePage() {
       <Hero data={data} onStart={start} />
 
       {hasMetrics ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <WeightCard data={data} i={1} />
-          <CaloriesCard data={data} i={2} />
-          <MacrosCard data={data} i={3} />
-          <StepsCard data={data} i={4} />
-        </div>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <WeightCard data={data} i={1} />
+            <CaloriesCard data={data} i={2} />
+            <MacrosCard data={data} i={3} />
+            <StepsCard data={data} i={4} />
+          </div>
+          <Habits
+            today={data.today}
+            weighIns={data.metrics.weight?.series ?? []}
+            calories={data.metrics.calories?.series ?? []}
+            i={5}
+          />
+        </>
       ) : (
         <p className="rise text-sm text-muted" style={stagger(1)}>
           No health data yet.
         </p>
       )}
 
-      <AskCoach i={5} />
+      <AskCoach i={8} />
     </div>
   );
 }
