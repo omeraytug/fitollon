@@ -40,6 +40,15 @@ def home(session: Session = DbSession) -> dict:
             "series": [{"day": d.isoformat(), "value": v} for d, v in sorted(series.items())],
         }
 
+    # Habits: the days with a weigh-in or a food log over the last five calendar weeks, Monday first.
+    habit_start = end - timedelta(days=end.weekday() + 28)
+    weighed, _ = key_metric_series(session, "weight", habit_start, end)
+    ate, _ = key_metric_series(session, "calories", habit_start, end)
+    habits = {
+        "weigh_in": sorted(d.isoformat() for d in weighed),
+        "food": sorted(d.isoformat() for d, v in ate.items() if v > 0),
+    }
+
     last = last_training_session(session)
     upcoming = next_template(session)
     last_sync = session.scalars(
@@ -51,6 +60,7 @@ def home(session: Session = DbSession) -> dict:
     return {
         "today": end.isoformat(),
         "metrics": metrics,
+        "habits": habits,
         "last_training": {"id": last.id, "day": last.day.isoformat(), "title": last.title} if last else None,
         "next_training": {"id": upcoming.id, "name": upcoming.name} if upcoming else None,
         "targets": targets_for(session, end),

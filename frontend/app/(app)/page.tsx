@@ -25,6 +25,7 @@ type MetricSummary = {
 type Home = {
   today: string;
   metrics: Record<string, MetricSummary | undefined>;
+  habits: { weigh_in: string[]; food: string[] };
   last_training: { id: number; day: string; title: string | null } | null;
   next_training: { id: number; name: string } | null;
   targets: Goals | null;
@@ -428,12 +429,7 @@ export default function HomePage() {
             <MacrosCard data={data} i={3} />
             <StepsCard data={data} i={4} />
           </div>
-          <Habits
-            today={data.today}
-            weighIns={data.metrics.weight?.series ?? []}
-            calories={data.metrics.calories?.series ?? []}
-            i={5}
-          />
+          <Habits today={data.today} weighIns={data.habits.weigh_in} foodLogs={data.habits.food} i={5} />
         </>
       ) : (
         <p className="rise text-sm text-muted" style={stagger(1)}>

@@ -1,9 +1,7 @@
-import { ChevronRight } from "lucide-react";
-import Link from "next/link";
+import { addDays, shortDay } from "@/lib/format";
 
-import { addDays, shortDay, type Point } from "@/lib/format";
-
-const DAYS = 30;
+const WEEKS = 5;
+const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const stagger = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
@@ -13,75 +11,56 @@ function weekStart(day: string): string {
   return addDays(day, -weekday);
 }
 
-/** One habit as a 30-day grid (oldest top left, today bottom right) and how many days of this week it happened. */
-function HabitCard({
-  title,
-  href,
-  color,
-  logged,
-  today,
-  i,
-}: {
-  title: string;
-  href: string;
-  color: string;
-  logged: Set<string>;
-  today: string;
-  i: number;
-}) {
-  const days = Array.from({ length: DAYS }, (_, n) => addDays(today, n - DAYS + 1));
+/** One habit as a calendar of the last five weeks (a row per week, Monday first) and this week's count. */
+function HabitCard({ title, color, logged, today, i }: { title: string; color: string; logged: Set<string>; today: string; i: number }) {
+  const first = addDays(weekStart(today), -7 * (WEEKS - 1));
+  const days = Array.from({ length: WEEKS * 7 }, (_, n) => addDays(first, n));
   const monday = weekStart(today);
-  const thisWeek = days.filter((day) => day >= monday && logged.has(day)).length;
-  const total = days.filter((day) => logged.has(day)).length;
+  const thisWeek = days.filter((day) => day >= monday && day <= today && logged.has(day)).length;
+  const total = days.filter((day) => day <= today && logged.has(day)).length;
 
   return (
-    <Link
-      href={href}
+    <div
       style={stagger(i)}
-      className="rise press group flex flex-col rounded-2xl border border-hairline bg-surface p-4 hover:border-accent/40"
+      className="rise flex flex-col items-center rounded-2xl border border-hairline bg-surface p-4 text-center"
     >
       <p className="font-medium">{title}</p>
-      <p className="text-xs text-muted">Last 30 days</p>
+      <p className="text-xs text-muted">Last 5 weeks</p>
       <div
         role="img"
-        aria-label={`${title}: ${total} of the last 30 days, ${thisWeek} of 7 this week`}
-        className="mt-3 grid w-full max-w-72 auto-cols-fr grid-flow-col grid-rows-3 gap-[3px] sm:gap-1"
+        aria-label={`${title}: ${total} days in the last 5 weeks, ${thisWeek} of 7 this week`}
+        className="mt-3 grid w-full max-w-52 grid-cols-7 gap-[3px] sm:gap-1"
       >
+        {WEEKDAYS.map((letter, n) => (
+          <span key={n} aria-hidden className="pb-0.5 text-[10px] leading-none text-muted">
+            {letter}
+          </span>
+        ))}
         {days.map((day, n) => {
           const done = logged.has(day);
+          const future = day > today;
           return (
             <span
               key={day}
-              title={shortDay(day)}
-              className={`aspect-square rounded-[3px] sm:rounded-[4px] ${done ? "pop" : "bg-grid"} ${
-                day === today && !done ? "ring-1 ring-muted/60 ring-inset" : ""
-              }`}
+              title={future ? undefined : shortDay(day)}
+              className={`aspect-square rounded-[3px] sm:rounded-[4px] ${
+                done ? "pop" : future ? "border border-dashed border-grid" : "bg-grid"
+              } ${day === today && !done ? "ring-1 ring-muted/60 ring-inset" : ""}`}
               style={done ? { backgroundColor: color, animationDelay: `${200 + n * 12}ms` } : undefined}
             />
           );
         })}
       </div>
-      <div className="mt-3 flex items-baseline gap-1.5 border-t border-hairline pt-3">
+      <div className="mt-3 flex w-full items-baseline justify-center gap-1.5 border-t border-hairline pt-3">
         <span className="text-xl font-semibold tabular-nums">{thisWeek}/7</span>
         <span className="text-sm text-ink-2">this week</span>
-        <ChevronRight size={16} className="ml-auto self-center text-muted transition-transform group-hover:translate-x-0.5" />
       </div>
-    </Link>
+    </div>
   );
 }
 
 /** Days you weighed in and logged food, from what MacroFactor writes to Apple Health. */
-export function Habits({
-  today,
-  weighIns,
-  calories,
-  i,
-}: {
-  today: string;
-  weighIns: Point[];
-  calories: Point[];
-  i: number;
-}) {
+export function Habits({ today, weighIns, foodLogs, i }: { today: string; weighIns: string[]; foodLogs: string[]; i: number }) {
   return (
     <section className="flex flex-col gap-3">
       <h2 className="rise text-lg font-semibold" style={stagger(i)}>
@@ -90,17 +69,15 @@ export function Habits({
       <div className="grid grid-cols-2 gap-3">
         <HabitCard
           title="Weigh-in"
-          href="/weight"
           color="var(--series-3)"
-          logged={new Set(weighIns.map((p) => p.day))}
+          logged={new Set(weighIns)}
           today={today}
           i={i + 1}
         />
         <HabitCard
           title="Food logging"
-          href="/nutrition"
           color="var(--series-1)"
-          logged={new Set(calories.filter((p) => p.value > 0).map((p) => p.day))}
+          logged={new Set(foodLogs)}
           today={today}
           i={i + 2}
         />
