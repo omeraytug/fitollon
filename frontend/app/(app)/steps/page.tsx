@@ -11,7 +11,7 @@ import {
   type SeriesResponse,
 } from "@/components/history";
 import { TimeChart } from "@/components/time-chart";
-import { formatNumber, mean, shortDay } from "@/lib/format";
+import { addDays, daysBetween, formatNumber, shortDay } from "@/lib/format";
 
 export default function StepsPage() {
   const [range, setRange] = useRange("steps", 30);
@@ -34,9 +34,16 @@ function span(first: string, last: string, today: string): string {
 
 function Content({ data }: { data: SeriesResponse }) {
   const points = data.series.steps?.points ?? [];
-  // Both count every day in the range, today's steps so far included.
-  const avg = mean(points.map((p) => p.value));
   const total = points.reduce((sum, p) => sum + p.value, 0);
+  // Every day counts, today and days without data as 0 (as Apple Health averages steps), but not the days
+  // before your step history begins, so 1Y isn't divided by 365 when the data is younger than that.
+  const firstDay = points.reduce((first, p) => (p.day < first ? p.day : first), data.end);
+  const days = points.length
+    ? Array.from({ length: daysBetween(firstDay > data.start ? firstDay : data.start, data.end) + 1 }, (_, n) =>
+        addDays(data.end, -n),
+      ).reverse()
+    : [];
+  const avg = days.length ? total / days.length : null;
   const covers =
     data.end >= data.today
       ? `${shortDay(data.start, data.start.slice(0, 4) !== data.today.slice(0, 4))} – today`
@@ -62,7 +69,7 @@ function Content({ data }: { data: SeriesResponse }) {
           series={[
             { key: "steps", label: weekly ? "Steps (weekly average)" : "Steps", color: "var(--series-1)", kind: "bars", points },
             // The Daily average above as a line; hovering a bar shows only its steps.
-            ...(avg !== null && points.length > 1
+            ...(avg !== null && days.length > 1
               ? [
                   {
                     key: "avg",
@@ -71,7 +78,7 @@ function Content({ data }: { data: SeriesResponse }) {
                     kind: "line" as const,
                     dashed: true,
                     drawnOnly: true,
-                    points: points.map((p) => ({ day: p.day, value: avg })),
+                    points: days.map((day) => ({ day, value: avg })),
                   },
                 ]
               : []),
