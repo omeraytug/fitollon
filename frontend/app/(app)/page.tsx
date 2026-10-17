@@ -10,6 +10,7 @@ import { Habits } from "@/components/habits";
 import { useSignedUrls } from "@/components/media/use-signed-urls";
 import { SparkBars, Sparkline } from "@/components/sparkline";
 import { api } from "@/lib/api";
+import { perLoggedDay, stepsPerDay } from "@/lib/averages";
 import type { MediaItem } from "@/lib/media";
 import { addDays, displayUnit, formatDay, formatNumber, formatValue, longDate, type Point } from "@/lib/format";
 
@@ -18,7 +19,6 @@ type MetricSummary = {
   today: number | null;
   latest: number;
   latest_day: string;
-  avg7: number | null;
   series: Point[];
 };
 
@@ -296,9 +296,14 @@ function CaloriesCard({ data, i }: { data: Home; i: number }) {
 }
 
 function MacrosCard({ data, i }: { data: Home; i: number }) {
-  const rows = MACROS.map((m) => ({ ...m, metric: data.metrics[m.key], goal: data.targets?.[m.key] ?? null })).filter(
-    (m) => m.metric,
-  );
+  // The 7-day averages match the Nutrition page on 7D: logged days of the last 7, today left out.
+  const week = addDays(data.today, -6);
+  const rows = MACROS.map((m) => ({
+    ...m,
+    metric: data.metrics[m.key],
+    goal: data.targets?.[m.key] ?? null,
+    avg: perLoggedDay(data.metrics[m.key]?.series ?? [], week, data.today, data.today),
+  })).filter((m) => m.metric);
   if (rows.length === 0) return null;
 
   return (
@@ -321,9 +326,7 @@ function MacrosCard({ data, i }: { data: Home; i: number }) {
                   <GoalBar value={today ?? 0} goal={m.goal} color={m.color} i={i} />
                 </div>
               )}
-              {m.metric!.avg7 !== null && (
-                <p className="mt-1 text-xs text-muted">7-day avg {formatValue(m.metric!.avg7, m.metric!.unit, 0)}</p>
-              )}
+              {m.avg !== null && <p className="mt-1 text-xs text-muted">7-day avg {formatValue(m.avg, m.metric!.unit, 0)}</p>}
             </li>
           );
         })}
@@ -335,11 +338,13 @@ function MacrosCard({ data, i }: { data: Home; i: number }) {
 function StepsCard({ data, i }: { data: Home; i: number }) {
   const steps = data.metrics.steps;
   if (!steps) return null;
+  // The same number as the Steps page on 7D: the last 7 days with today so far, so it matches the bars below.
+  const avg = stepsPerDay(steps.series, addDays(data.today, -6), data.today);
   return (
     <Card href="/steps" icon={Footprints} title="Steps" i={i}>
       <Big value={steps.today} unit={steps.unit} />
       <p className="text-xs text-muted">{steps.today === null ? "No steps synced yet today" : "So far today"}</p>
-      {steps.avg7 !== null && <p className="mt-2 text-sm text-ink-2">7-day avg {formatValue(steps.avg7, steps.unit)}</p>}
+      {avg !== null && <p className="mt-2 text-sm text-ink-2">7-day avg {formatValue(avg, steps.unit, 0)}</p>}
       <div className="mt-auto pt-3">
         <SparkBars
           series={steps.series}

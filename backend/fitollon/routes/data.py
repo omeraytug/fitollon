@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
 
 @router.get("/home")
 def home(session: Session = DbSession) -> dict:
-    """Today's numbers with their 7-day averages, plus what's next in training."""
+    """Today's numbers and the last 30 days of each (Home works out its averages from them), plus training."""
     end = today()
     start = end - timedelta(days=29)
 
@@ -29,14 +29,11 @@ def home(session: Session = DbSession) -> dict:
         if not series:
             continue
         last_day = max(series)
-        # Averages use the 7 days before today: today's food log and steps are still filling up.
-        week = [v for d, v in series.items() if end - timedelta(days=7) <= d < end]
         metrics[key] = {
             "unit": unit,
             "today": series.get(end),
             "latest": series[last_day],
             "latest_day": last_day.isoformat(),
-            "avg7": sum(week) / len(week) if week else None,
             "series": [{"day": d.isoformat(), "value": v} for d, v in sorted(series.items())],
         }
 

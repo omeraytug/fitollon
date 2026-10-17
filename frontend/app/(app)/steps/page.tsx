@@ -11,7 +11,8 @@ import {
   type SeriesResponse,
 } from "@/components/history";
 import { TimeChart } from "@/components/time-chart";
-import { addDays, daysBetween, formatNumber, shortDay } from "@/lib/format";
+import { stepDays, stepsPerDay } from "@/lib/averages";
+import { formatNumber, shortDay } from "@/lib/format";
 
 export default function StepsPage() {
   const [range, setRange] = useRange("steps", 30);
@@ -35,15 +36,8 @@ function span(first: string, last: string, today: string): string {
 function Content({ data }: { data: SeriesResponse }) {
   const points = data.series.steps?.points ?? [];
   const total = points.reduce((sum, p) => sum + p.value, 0);
-  // Every day counts, today and days without data as 0 (as Apple Health averages steps), but not the days
-  // before your step history begins, so 1Y isn't divided by 365 when the data is younger than that.
-  const firstDay = points.reduce((first, p) => (p.day < first ? p.day : first), data.end);
-  const days = points.length
-    ? Array.from({ length: daysBetween(firstDay > data.start ? firstDay : data.start, data.end) + 1 }, (_, n) =>
-        addDays(data.end, -n),
-      ).reverse()
-    : [];
-  const avg = days.length ? total / days.length : null;
+  const days = stepDays(points, data.start, data.end); // the same rule as Home's 7-day average
+  const avg = stepsPerDay(points, data.start, data.end);
   const covers =
     data.end >= data.today
       ? `${shortDay(data.start, data.start.slice(0, 4) !== data.today.slice(0, 4))} – today`
